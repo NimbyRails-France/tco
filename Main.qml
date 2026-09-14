@@ -81,7 +81,7 @@ ApplicationWindow {
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 16; spacing: 16
                     Label { text: "CIRCULATIONS"; font.bold: true; font.pixelSize: 12; font.letterSpacing: 1; color: "#a6b7c7" }
-                    Label { text: "Choisir un train pour afficher son Path."; color: "#8095a8"; font.pixelSize: 11 }
+                    Label { text: "Choisir un train pour afficher ses réservations."; color: "#8095a8"; font.pixelSize: 11 }
                     ListView {
                         Layout.fillHeight: true; Layout.fillWidth: true; model: root.trains; spacing: 8; clip: true
                         delegate: Rectangle {
@@ -201,7 +201,7 @@ ApplicationWindow {
         RowLayout {
             Layout.fillWidth: true
             Label { text: root.live.status || "Déconnecté"; color:root.live.live?"#7bdbae":"#efbe72"; font.pixelSize:12; Layout.fillWidth:true; elide:Text.ElideRight }
-                    Label { text: "NimbyRailsSDK 0.4 · observation expérimentale · "+(root.live.updated || "--:--:--"); color:"#758b9c"; font.pixelSize:11 }
+                    Label { text: "NimbyRailsSDK 0.5 · observation expérimentale · "+(root.live.updated || "--:--:--"); color:"#758b9c"; font.pixelSize:11 }
         }
     }
 }

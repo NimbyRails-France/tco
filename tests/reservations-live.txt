@@ -1,0 +1,15 @@
+LIVE 1 capture_ms=406 reserved=59 available=1 occupied=1214 available=1
+LIVE 2 capture_ms=430 reserved=59 available=1 occupied=1204 available=1
+LIVE 3 capture_ms=409 reserved=59 available=1 occupied=1200 available=1
+LIVE 4 capture_ms=361 reserved=59 available=1 occupied=1204 available=1
+LIVE 5 capture_ms=434 reserved=59 available=1 occupied=1218 available=1
+LIVE 6 capture_ms=433 reserved=59 available=1 occupied=1223 available=1
+LIVE 7 capture_ms=436 reserved=59 available=1 occupied=1225 available=1
+LIVE 8 capture_ms=450 reserved=58 available=1 occupied=1225 available=1
+LIVE 9 capture_ms=483 reserved=58 available=1 occupied=1225 available=1
+LIVE 10 capture_ms=493 reserved=58 available=1 occupied=1218 available=1
+LIVE 11 capture_ms=435 reserved=58 available=1 occupied=1221 available=1
+LIVE 12 capture_ms=476 reserved=58 available=1 occupied=1233 available=1
+LIVE 13 capture_ms=482 reserved=58 available=1 occupied=1233 available=1
+LIVE 14 capture_ms=472 reserved=58 available=1 occupied=1227 available=1
+VERIFY frames=14 usage_frames=14 distinct_positions=14

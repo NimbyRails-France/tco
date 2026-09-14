@@ -2,6 +2,7 @@
 #include <QObject>
 #include <QThread>
 #include <QVariantMap>
+#include <QTimer>
 #include <atomic>
 #include <mutex>
 
@@ -37,4 +38,5 @@ private:
     ReaderThread worker_;
     QVariantMap data_;
     uint64_t generation_=0;
+    QTimer pathExpiry_;
 };

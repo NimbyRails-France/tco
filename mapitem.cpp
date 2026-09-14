@@ -53,7 +53,20 @@ void MapItem::paint(QPainter* p){
  p->drawImage(0,0,background_);p->setRenderHint(QPainter::Antialiasing);
  auto visible=[&](QPointF a){return a.x()>-20&&a.x()<width()+20&&a.y()>-20&&a.y()<height()+20;};
  p->setPen(QPen(QColor("#e4bf50"),3));
+ if(showPath_&&data_.value("live").toBool()&&data_.value("pathAvailable").toBool()&&!data_.value("pathStale").toBool())
  for(auto v:data_.value("mapPath").toList()){auto i=index_.find(v.toString().toULongLong(nullptr,16));if(i!=index_.end()){auto a=point(nodes_[i->second]);if(visible(a))p->drawPoint(a);}}
+ // Track anchors only: curve interpolation and switch branches are not validated.
+ auto usage=[&](const char* key,const char* available,const QColor& color,bool occupied){
+  if(!data_.value("live").toBool()||data_.value("usageStale").toBool()||!data_.value(available).toBool())return;
+  p->setPen(QPen(color,2));p->setBrush(Qt::NoBrush);
+  for(const auto& value:data_.value(key).toList()){
+   auto i=index_.find(value.toMap().value("track").toString().toULongLong(nullptr,16));if(i==index_.end())continue;
+   const auto a=point(nodes_[i->second]);if(!visible(a))continue;
+   if(occupied)p->drawRect(QRectF(a-QPointF(4,4),QSizeF(8,8)));else p->drawEllipse(a,7,7);
+  }
+ };
+ usage("mapReservations","reservationsAvailable",QColor("#65db87"),false);
+ usage("mapOccupations","occupationsAvailable",QColor("#ff6b6b"),true);
  if(scale_>.02){p->setPen(QPen(QColor("#80bdd8"),1));for(auto v:data_.value("mapSignals").toList()){auto m=v.toMap();auto i=index_.find(m["track"].toString().toULongLong(nullptr,16));if(i==index_.end())continue;auto a=point(nodes_[i->second]);if(!visible(a))continue;
   p->drawLine(a,a+QPointF(0,-8));if(m["balise"].toBool())p->drawRect(QRectF(a+QPointF(-2,-12),QSizeF(4,4)));else p->drawEllipse(a+QPointF(0,-11),3,3);
  }}

@@ -16,7 +16,18 @@ namespace {
 QString id(uint64_t value) {return QString::number(value,16).rightJustified(16,'0').toUpper();}
 QVariantMap empty(const QString& status) {
     return {{"status",status},{"live",false},{"tracks",QVariantList{}},{"trains",QVariantList{}},{"stations",QVariantList{}},
-        {"trackCount",0},{"stationCount",0},{"signalCount",0},{"trainCount",0},{"baliseCount",0},{"updated",QString()}};
+        {"trackCount",0},{"stationCount",0},{"signalCount",0},{"trainCount",0},{"baliseCount",0},{"updated",QString()},
+        {"mapPath",QVariantList{}},{"pathAvailable",false},{"pathSize",0},{"pathStale",false},
+        {"mapReservations",QVariantList{}},{"mapOccupations",QVariantList{}},
+        {"reservationsAvailable",false},{"occupationsAvailable",false},{"usageStale",false},
+        {"selectedTrainId",QString()},{"selectedTrackId",QString()},{"selectedTrain",QString()}};
+}
+void clearPath(QVariantMap& data,bool stale=false) {
+    data["mapPath"]=QVariantList{};data["pathAvailable"]=false;data["pathSize"]=0;data["pathStale"]=stale;
+}
+void clearUsage(QVariantMap& data,bool stale=false) {
+    data["mapReservations"]=QVariantList{};data["mapOccupations"]=QVariantList{};
+    data["reservationsAvailable"]=false;data["occupationsAvailable"]=false;data["usageStale"]=stale;
 }
 uint32_t discover() {
     HANDLE h=CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);if(h==INVALID_HANDLE_VALUE)return 0;
@@ -93,6 +104,19 @@ QVariantMap capture(NimbySession session,uint32_t pid,const ViewFilter& view) {
     result["selectedTrainId"]=selected?id(selected->id):QString();
     result["selectedTrackId"]=selected&&(selected->flags&NIMBY_TRAIN_POSITION_VALID)?id(selected->track_id):QString();
     result["selectedTrain"]=selected?QString::fromUtf8(selected->name_utf8):QString();
+    auto usage=[&](auto function,const char* key,const char* availability,bool selectedOnly){
+        uint32_t n=0;const auto status=function(snap.value,nullptr,0,&n);
+        result[key]=QVariantList{};result[availability]=false;
+        if(status==NIMBY_DATA_UNAVAILABLE)return;
+        check(status);auto rows=copy<NimbyTrackUsage>(snap.value,function);QVariantList values;
+        for(const auto& row:rows)if(!selectedOnly||(selected&&row.train_id==selected->id))
+            values.push_back(QVariantMap{{"train",id(row.train_id)},{"track",id(row.track_id)},
+                {"begin",row.fraction_begin},{"end",row.fraction_end}});
+        result[key]=values;result[availability]=!selectedOnly||selected!=nullptr;
+    };
+    usage(NimbySdk_CopyTrackReservations,"mapReservations","reservationsAvailable",true);
+    usage(NimbySdk_CopyTrackOccupations,"mapOccupations","occupationsAvailable",false);
+    result["usageStale"]=false;
     int positionedCount=0;for(const auto& t:trains)if(t.flags&NIMBY_TRAIN_POSITION_VALID)++positionedCount;
     result["positionedCount"]=positionedCount;
     result["captureMs"]=elapsed.elapsed();
@@ -127,11 +151,20 @@ void ReaderThread::run() {
     if(session)NimbySdk_CloseSession(session);
 }
 Backend::Backend(QObject* parent):QObject(parent),data_(empty("Déconnecté")) {
+    pathExpiry_.setSingleShot(true);pathExpiry_.setInterval(1500);
+    connect(&pathExpiry_,&QTimer::timeout,this,[this]{
+        if(!data_.value("live").toBool())return;
+        clearPath(data_,true);clearUsage(data_,true);emit changed();
+    });
     connect(&worker_,&ReaderThread::received,this,[this](uint64_t token,const QVariantMap& data){
         worker_.pending.store(false);
         {std::lock_guard lock(worker_.viewMutex);
             if(data.contains("viewRevision")&&data["viewRevision"].toULongLong()!=worker_.view.revision)return;}
-        if(token!=worker_.request.load())return;data_=data;emit changed();
+        if(token!=worker_.request.load())return;
+        data_=data;
+        if(!data_.value("live").toBool()||!data_.value("pathAvailable").toBool()||data_.value("selectedTrainId").toString().isEmpty())clearPath(data_);
+        pathExpiry_.stop();if(data_.value("live").toBool())pathExpiry_.start();
+        emit changed();
     });worker_.start();
 }
 Backend::~Backend(){worker_.requestInterruption();worker_.wait();}
@@ -139,11 +172,23 @@ void Backend::connectGame(const QString& text){
     bool ok=true;uint32_t pid=0;if(!text.trimmed().isEmpty())pid=text.trimmed().toUInt(&ok);
     if(!ok||(!text.trimmed().isEmpty()&&!pid)){disconnectGame();data_=empty("PID invalide");emit changed();return;}
     const auto token=(++generation_<<32)|pid;worker_.request.store(token);
-    data_=empty("Connexion…");emit changed();
+    pathExpiry_.stop();data_=empty("Connexion…");emit changed();
 }
-void Backend::disconnectGame(){worker_.request.store(0);data_=empty("Déconnecté");emit changed();}
+void Backend::disconnectGame(){worker_.request.store(0);pathExpiry_.stop();data_=empty("Déconnecté");emit changed();}
 void Backend::setView(int scope,const QString& station,const QString& track,int page){
     std::lock_guard lock(worker_.viewMutex);
     worker_.view={std::clamp(scope,0,3),std::max(0,page),station.toULongLong(nullptr,16),track.toULongLong(nullptr,16),worker_.view.revision+1,worker_.view.train};
 }
-void Backend::selectTrain(const QString& train){std::lock_guard lock(worker_.viewMutex);worker_.view.train=train.toULongLong(nullptr,16);++worker_.view.revision;}
+void Backend::selectTrain(const QString& train){
+    const auto selected=train.toULongLong(nullptr,16);
+    {std::lock_guard lock(worker_.viewMutex);worker_.view.train=selected;++worker_.view.revision;}
+    // Invalidate the old overlay immediately; in-flight results are rejected by revision.
+    pathExpiry_.stop();clearPath(data_);clearUsage(data_);data_["selectedTrainId"]=selected?id(selected):QString();
+    data_["selectedTrackId"]=QString();data_["selectedTrain"]=QString();
+    for(const auto& value:data_.value("trains").toList()){
+        const auto row=value.toMap();if(row.value("id")==data_["selectedTrainId"]){
+            data_["selectedTrain"]=row.value("name");data_["selectedTrackId"]=row.value("track");break;
+        }
+    }
+    emit changed();
+}

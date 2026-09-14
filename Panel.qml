@@ -7,7 +7,7 @@ Rectangle {
  required property var liveData
  signal trainSelected(string trainId)
  color: "#070b0a"; border.color: "#38493f"; clip: true
- RailMap { id: map; anchors.fill: parent; snapshotData: panel.liveData }
+ RailMap { id: map; anchors.fill: parent; snapshotData: panel.liveData; showCalculatedPath: pathToggle.checked }
  MouseArea {
   anchors.fill: parent; property real lastX; property real lastY
   property real pressX; property real pressY; property bool moved: false
@@ -58,7 +58,8 @@ Rectangle {
   RowLayout {
    anchors.fill: parent; anchors.margins: 8
    Label { text: "RÉSEAU COMPLET"; color: "#edf1df"; font.bold: true; font.letterSpacing: 1 }
-   Label { text: (panel.liveData.selectedTrain || "")+" · Path "+(panel.liveData.pathAvailable?panel.liveData.pathSize:"indisponible"); color: "#d9bd6c" }
+   Label { Layout.fillWidth: true; elide: Text.ElideRight; text: (panel.liveData.selectedTrain || "Aucun train")+" · Réservations : "+(panel.liveData.usageStale?"périmées":panel.liveData.reservationsAvailable?panel.liveData.mapReservations.length:"indisponibles"); color: "#65db87" }
+   CheckBox { id: pathToggle; text: "Path calculé"; checked: false; ToolTip.visible: hovered; ToolTip.text: panel.liveData.pathAvailable ? panel.liveData.pathSize+" voies calculées — ne prouve pas une réservation" : "Path indisponible" }
    Item { Layout.fillWidth: true }
    Button { text: "Tout voir"; onClicked: map.fit() }
    Button { text: "Centrer train"; enabled: !!panel.liveData.selectedTrackId; onClicked: map.focusTrain() }
@@ -67,6 +68,6 @@ Rectangle {
  Rectangle {
   anchors.bottom: parent.bottom; width: parent.width; height: 42; color: "#df101b16"
   Label { anchors.fill: parent; anchors.margins: 8; color: "#a8b9a8"; font.pixelSize: 11; wrapMode: Text.WordWrap
-   text: "Molette : zoom au curseur · glisser : déplacement libre · doré : voies du Path\nPositions repérées à la voie (fraction affichée) · raccordements partiels · états des aiguilles et des signaux inconnus" }
+   text: "Vert : réservations du train sélectionné · rouge : occupation de tous les trains ("+(panel.liveData.usageStale?"périmée":panel.liveData.occupationsAvailable?panel.liveData.mapOccupations.length+" portions":"indisponible")+") · doré : Path optionnel\nRepères à la voie, bornes géométriques non tracées · aucune donnée ≠ voie libre · aiguilles et aspects inconnus · molette : zoom, glisser : déplacement" }
  }
 }
