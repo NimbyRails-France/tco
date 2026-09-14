@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.24)
+project(NimbyTco VERSION 0.1.0 LANGUAGES CXX)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2)
+find_package(NimbyRailsSDK 0.4 CONFIG REQUIRED)
+qt_standard_project_setup(REQUIRES 6.5)
+qt_add_executable(NimbyTco main.cpp backend.cpp backend.h mapitem.cpp mapitem.h)
+qt_add_qml_module(NimbyTco URI NimbyTco QML_FILES Main.qml Panel.qml)
+target_compile_features(NimbyTco PRIVATE cxx_std_20)
+target_compile_definitions(NimbyTco PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(NimbyTco PRIVATE Qt6::Quick Qt6::QuickControls2 NimbyRailsSDK::SDK)
+set_target_properties(NimbyTco PROPERTIES WIN32_EXECUTABLE TRUE)
+add_custom_command(TARGET NimbyTco POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "$<TARGET_FILE:NimbyRailsSDK::SDK>" "$<TARGET_FILE_DIR:NimbyTco>")
