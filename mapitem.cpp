@@ -1,9 +1,11 @@
 #include "mapitem.h"
 #include <QPainter>
+#include <QImageReader>
 #include <algorithm>
 #include <cstring>
 #include <cmath>
 MapItem::MapItem(QQuickItem* p):QQuickPaintedItem(p){setAntialiasing(true);}
+void MapItem::setSignalSize(double value){if(!std::isfinite(value))return;value=std::clamp(value,24.,96.);if(signalSize_!=value){signalSize_=value;update();emit dataChanged();}}
 QPointF MapItem::point(const NimbyTrackNode& n)const{return {(n.x-center_.x())*scale_+width()/2,(-n.y-center_.y())*scale_+height()/2};}
 void MapItem::invalidate(){dirty_=true;update();}
 void MapItem::setData(const QVariantMap& v){
@@ -67,8 +69,45 @@ void MapItem::paint(QPainter* p){
  };
  usage("mapReservations","reservationsAvailable",QColor("#65db87"),false);
  usage("mapOccupations","occupationsAvailable",QColor("#ff6b6b"),true);
- if(scale_>.02){p->setPen(QPen(QColor("#80bdd8"),1));for(auto v:data_.value("mapSignals").toList()){auto m=v.toMap();auto i=index_.find(m["track"].toString().toULongLong(nullptr,16));if(i==index_.end())continue;auto a=point(nodes_[i->second]);if(!visible(a))continue;
-  p->drawLine(a,a+QPointF(0,-8));if(m["balise"].toBool())p->drawRect(QRectF(a+QPointF(-2,-12),QSizeF(4,4)));else p->drawEllipse(a+QPointF(0,-11),3,3);
+ // Several signals can share a track anchor. Keep their screen rectangles
+ // separate so a balise cannot cover the changing lamps of a path signal.
+ std::vector<QRectF> signalRects;
+ auto placeSignal=[&](QPointF anchor,QSizeF size){
+  const QRectF initial(anchor+QPointF(-size.width()/2,-size.height()-3),size);
+  QRectF chosen=initial;
+  for(int attempt=0;attempt<256;++attempt){
+   const int column=attempt%9;const int dx=column==0?0:((column+1)/2)*(column%2?1:-1);
+   const int row=attempt/9;
+   const int dy=row==0?0:((row+1)/2)*(row%2?-1:1);
+   chosen=initial.translated(dx*(signalSize_+6),dy*(signalSize_+6));
+   if(chosen.left()<0||chosen.right()>width()||chosen.top()<0||chosen.bottom()>height())continue;
+   bool overlaps=false;for(const auto& used:signalRects)if(used.adjusted(-3,-3,3,3).intersects(chosen)){overlaps=true;break;}
+   if(!overlaps)break;
+  }
+  signalRects.push_back(chosen);return chosen;
+ };
+ {for(auto v:data_.value("mapSignals").toList()){auto m=v.toMap();auto i=index_.find(m["track"].toString().toULongLong(nullptr,16));if(i==index_.end())continue;auto a=point(nodes_[i->second]);if(!visible(a))continue;
+  p->setPen(QPen(QColor(m["marker"].toBool()?"#e6c789":"#80bdd8"),1.5));p->setBrush(QColor("#070b0a"));
+  p->drawLine(a,a+QPointF(0,-8));
+  const auto path=m["texturePath"].toString();
+  if(!path.isEmpty()&&m["stateAvailable"].toBool()){
+   auto image=signalImages_.constFind(path);
+   if(image==signalImages_.cend()){
+    if(signalImages_.size()>=256)signalImages_.clear();
+    QImageReader reader(path);auto size=reader.size();if(size.isValid())reader.setScaledSize(size.scaled(192,192,Qt::KeepAspectRatio));
+    signalImages_.insert(path,reader.read());image=signalImages_.constFind(path);
+   }
+   if(!image->isNull()){
+    const QSizeF size=image->size().scaled(int(signalSize_),int(signalSize_),Qt::KeepAspectRatio);
+    const auto rect=placeSignal(a,size);
+    p->drawLine(a,QPointF(rect.center().x(),rect.bottom()));
+    p->drawImage(rect,*image);continue;
+   }
+  }
+  if(m["marker"].toBool()){
+   p->drawRect(QRectF(a+QPointF(-6,-23),QSizeF(12,15)));p->drawText(a+QPointF(-4,-11),"M");
+  }else if(m["balise"].toBool())p->drawRect(QRectF(a+QPointF(-3,-14),QSizeF(6,6)));else p->drawEllipse(a+QPointF(0,-11),3,3);
+  if(scale_>.08&&m["stateAvailable"].toBool())p->drawText(a+QPointF(6,-9),QString("E%1").arg(m["textureState"].toInt()));
  }}
  p->setFont(QFont("Segoe UI",9));
  for(auto v:data_.value("trains").toList()){auto m=v.toMap();if(!m["positioned"].toBool())continue;auto i=index_.find(m["track"].toString().toULongLong(nullptr,16));if(i==index_.end())continue;

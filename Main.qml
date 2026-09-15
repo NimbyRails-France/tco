@@ -5,6 +5,7 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: root
     required property var backend
+    required property var updater
     width: 1440; height: 900; minimumWidth: 1060; minimumHeight: 650
     visible: true
     title: "Nimby TCO — observation du réseau"
@@ -19,7 +20,14 @@ ApplicationWindow {
     property var live: backend.data
     property string selectedTrack: ""
     property string selectedSignal: ""
+    readonly property string selectedSignalText: {
+        if (!selectedSignal) return ""
+        for (let track of tracks) for (let signal of track.signals || [])
+            if (signal.id === selectedSignal) return signal.kind+" · "+signal.id+" · "+signal.aspect+" · "+signal.specificState
+        return "Signal hors de la vue courante"
+    }
     property bool panelMode: true
+    property real signalSize: 64
     Connections {
         target: root.backend
         function onChanged() {
@@ -125,15 +133,20 @@ ApplicationWindow {
                         Button { visible: !root.panelMode; text: "›"; enabled: (live.page || 0)+1<(live.pages || 1); onClicked: root.updateView(live.page+1) }
                     }
                     RowLayout {
-                        spacing: 22
+                        spacing: 12
                         Label { text: "━  Voie observée"; color: "#b8c7d2"; font.pixelSize: 11 }
                         Label { text: "▰  Train"; color: "#efbe72"; font.pixelSize: 11 }
-                        Label { text: "○  Signal : état inconnu"; color: "#74c4e8"; font.pixelSize: 11 }
+                        Label { text: "Signaux : textures natives"; color: "#74c4e8"; font.pixelSize: 11 }
                         Label { text: "◇  Balise"; color: "#c5b8ef"; font.pixelSize: 11 }
+                        Label { text: "M  Repère"; color: "#e6c789"; font.pixelSize: 11 }
+                        Item { Layout.fillWidth: true }
+                        Label { text: "Taille : "+Math.round(root.signalSize); color: "#b8c7d2"; font.pixelSize: 11 }
+                        Slider { Layout.preferredWidth: 110; from:24; to:96; stepSize:4; value:root.signalSize; onMoved:root.signalSize=value }
                     }
                     Panel {
                         Layout.fillWidth: true; Layout.fillHeight: true; visible: root.panelMode
                         liveData: root.live
+                        signalSize: root.signalSize
                         onTrainSelected: trainId => backend.selectTrain(trainId)
                         
                     }
@@ -146,7 +159,7 @@ ApplicationWindow {
                         delegate: Rectangle {
                             id: segment
                             required property var modelData
-                            width: ListView.view.width - 12; height: 142; radius: 5
+                            width: ListView.view.width - 12; height: 188; radius: 5
                             color: "#14212c"; border.color: root.selectedTrack===modelData.id ? "#4c9296" : "#263746"
                             Row {
                                 anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 12; spacing: 16
@@ -157,7 +170,7 @@ ApplicationWindow {
                             Item {
                                 id: rail
                                 anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 52
-                                y: 86; height: 8
+                                y: 132; height: 8
                                 Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: symbols.currentIndex===1 ? 6 : 3; color: "#b9c8d3" }
                                 Repeater {
                                     model: 2
@@ -169,13 +182,19 @@ ApplicationWindow {
                                         id: sig
                                         required property var modelData
                                         x: modelData.fraction*rail.width; y:-28; width:24; height:52
-                                        Rectangle { x:0; y:15; height:17; width:2; color:"#758ea1" }
-                                        Rectangle { x:-7; y:0; width:16; height:16; radius:sig.modelData.balise?0:8; rotation:sig.modelData.balise?45:0
+                                        Image { id: signalImage; x:-width/2; y:24-height; width:root.signalSize; height:root.signalSize
+                                            source:sig.modelData.textureUrl || ""; sourceSize.width:192; sourceSize.height:192
+                                            fillMode:Image.PreserveAspectFit; asynchronous:false }
+                                        Rectangle { visible:signalImage.status!==Image.Ready; x:0; y:15; height:17; width:2; color:"#758ea1" }
+                                        Rectangle { x:-7; y:0; width:16; height:16; radius:(sig.modelData.balise||sig.modelData.marker)?0:8; rotation:sig.modelData.balise?45:0
+                                            visible:signalImage.status!==Image.Ready
                                             color:"#14212c"; border.width:symbols.currentIndex===1?3:2; border.color:sig.modelData.balise?"#c5b8ef":"#74c4e8" }
-                                        MouseArea { anchors.fill:parent; hoverEnabled:true; cursorShape:Qt.PointingHandCursor
-                                            onClicked: root.selectedSignal=sig.modelData.kind+" · "+sig.modelData.id+" · état inconnu"
+                                        Label { visible:sig.modelData.marker&&signalImage.status!==Image.Ready; x:-4; y:0; text:"M"; color:"#e6c789"; font.pixelSize:12 }
+                                        Label { visible:signalImage.status!==Image.Ready; x:-18; y:-18; text:sig.modelData.aspect; font.pixelSize:9; color:"#b9c8d3" }
+                                        MouseArea { x:-root.signalSize/2; y:24-root.signalSize; width:root.signalSize; height:root.signalSize+12; hoverEnabled:true; cursorShape:Qt.PointingHandCursor
+                                            onClicked: root.selectedSignal=sig.modelData.id
                                             ToolTip.visible:containsMouse
-                                            ToolTip.text:sig.modelData.kind+"\n"+sig.modelData.id+"\nÉtat inconnu · sens "+sig.modelData.direction
+                                            ToolTip.text:sig.modelData.kind+"\n"+sig.modelData.id+"\n"+sig.modelData.aspect+" · sens "+sig.modelData.direction+"\n"+sig.modelData.specificState
                                         }
                                     }
                                 }
@@ -194,14 +213,16 @@ ApplicationWindow {
                         }
                         Label { anchors.centerIn:parent; visible:board.count===0; text:root.live.live ? "Aucune voie pour ce filtre" : "En attente de données du jeu"; color:"#8fa4b7"; font.pixelSize:17 }
                     }
-                    Label { Layout.fillWidth:true; elide:Text.ElideRight; text:root.selectedSignal || "Voies et positions observées · réservations et états des aiguilles non validés"; color:"#869dad"; font.pixelSize:11 }
+                    Label { Layout.fillWidth:true; elide:Text.ElideRight; text:root.selectedSignalText || "Voies et positions observées · états natifs des signaux dans la liste"; color:"#869dad"; font.pixelSize:11 }
                 }
             }
         }
         RowLayout {
             Layout.fillWidth: true
             Label { text: root.live.status || "Déconnecté"; color:root.live.live?"#7bdbae":"#efbe72"; font.pixelSize:12; Layout.fillWidth:true; elide:Text.ElideRight }
-                    Label { text: "NimbyRailsSDK 0.5 · observation expérimentale · "+(root.live.updated || "--:--:--"); color:"#758b9c"; font.pixelSize:11 }
+            Label { text:updater.status; color:"#91a6b9"; font.pixelSize:11 }
+            Button { text:updater.ready?"Redémarrer et mettre à jour":"Vérifier les mises à jour"; onClicked:updater.ready?updater.restart():updater.check() }
+                    Label { text: "NimbyRailsSDK 0.6 · observation expérimentale · "+(root.live.updated || "--:--:--"); color:"#758b9c"; font.pixelSize:11 }
         }
     }
 }

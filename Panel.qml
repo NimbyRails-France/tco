@@ -5,11 +5,12 @@ import Nimby.Map 1.0
 Rectangle {
  id: panel
  required property var liveData
+ property real signalSize: 64
  signal trainSelected(string trainId)
  color: "#070b0a"; border.color: "#38493f"; clip: true
- RailMap { id: map; anchors.fill: parent; snapshotData: panel.liveData; showCalculatedPath: pathToggle.checked }
+ RailMap { id: map; anchors.fill: parent; anchors.topMargin:48; anchors.bottomMargin:42; snapshotData: panel.liveData; showCalculatedPath: pathToggle.checked; signalSize: panel.signalSize }
  MouseArea {
-  anchors.fill: parent; property real lastX; property real lastY
+  anchors.fill: map; property real lastX; property real lastY
   property real pressX; property real pressY; property bool moved: false
   cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
   onPressed: mouse=>{lastX=pressX=mouse.x;lastY=pressY=mouse.y;moved=false;trainPicker.close()}
@@ -68,6 +69,6 @@ Rectangle {
  Rectangle {
   anchors.bottom: parent.bottom; width: parent.width; height: 42; color: "#df101b16"
   Label { anchors.fill: parent; anchors.margins: 8; color: "#a8b9a8"; font.pixelSize: 11; wrapMode: Text.WordWrap
-   text: "Vert : réservations du train sélectionné · rouge : occupation de tous les trains ("+(panel.liveData.usageStale?"périmée":panel.liveData.occupationsAvailable?panel.liveData.mapOccupations.length+" portions":"indisponible")+") · doré : Path optionnel\nRepères à la voie, bornes géométriques non tracées · aucune donnée ≠ voie libre · aiguilles et aspects inconnus · molette : zoom, glisser : déplacement" }
+   text: "Vert : réservations du train sélectionné · rouge : occupation de tous les trains ("+(panel.liveData.usageStale?"périmée":panel.liveData.occupationsAvailable?panel.liveData.mapOccupations.length+" portions":"indisponible")+") · doré : Path optionnel\nSignaux : textures du jeu et des mods · E<n> si image indisponible · aucune donnée ≠ voie libre · molette : zoom, glisser : déplacement" }
  }
 }
