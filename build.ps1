@@ -1,9 +1,9 @@
-param([string]$QtRoot='C:/Qt/6.11.2/mingw_64', [string]$QtTools='C:/Qt/Tools', [string]$SdkRoot="$PSScriptRoot/../../dist/NimbyRailsSDK-0.6.0")
+param([string]$QtRoot='C:/Qt/6.11.2/mingw_64', [string]$QtTools='C:/Qt/Tools', [string]$SdkRoot="$PSScriptRoot/../sdk/install/Release")
 $ErrorActionPreference='Stop'
 $cmake=Join-Path $QtTools 'CMake_64/bin/cmake.exe'
 $compiler=Join-Path $QtTools 'mingw1310_64/bin/g++.exe'
 $ninja=Join-Path $QtTools 'Ninja/ninja.exe'
-$output=if(Test-Path "$PSScriptRoot/../../include/nimby/sdk.h"){Join-Path $PSScriptRoot '../../build/tco'}else{Join-Path $PSScriptRoot 'build'}
+$output=Join-Path $PSScriptRoot 'build'
 $env:PATH="$(Join-Path $QtTools 'mingw1310_64/bin');$QtRoot/bin;$env:PATH"
 & $cmake -S $PSScriptRoot -B $output -G Ninja "-DCMAKE_CXX_COMPILER=$compiler" "-DCMAKE_MAKE_PROGRAM=$ninja" '-DCMAKE_BUILD_TYPE=Release' "-DCMAKE_PREFIX_PATH=$QtRoot;$SdkRoot" "-DNimbyRailsSDK_DIR=$SdkRoot/lib/cmake/NimbyRailsSDK"
 if($LASTEXITCODE){throw 'TCO configuration failed'}

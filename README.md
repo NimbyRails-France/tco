@@ -1,4 +1,4 @@
-﻿# Nimby TCO 0.4.0
+# Nimby TCO 0.4.0
 
 Tableau de contrôle optique expérimental pour NIMBY Rails, avec textures natives
 des signaux, clignotement observé, repères et taille réglable.
@@ -53,3 +53,7 @@ powershell -File package-installer.ps1 -SdkRoot C:/SDK/NimbyRailsSDK-0.6.0 -Iscc
 La publication doit joindre `tco-latest.json`, `project.json`, l'installateur,
 le ZIP et leurs empreintes. Publier le manifeste après les exécutables.
 Voir `THIRD_PARTY.md` et `licenses/` pour les composants redistribués.
+
+## Projet CLion indépendant
+
+Profils Debug/Release et configurations Run/Debug : [guide CLion](docs/clion.md).

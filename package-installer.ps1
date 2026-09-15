@@ -1,6 +1,6 @@
 param(
- [string]$SdkRoot="$PSScriptRoot/../../dist/NimbyRailsSDK-0.6.0",
- [string]$Iscc="$PSScriptRoot/../../build/installer-tools/Inno/ISCC.exe",
+ [string]$SdkRoot="$PSScriptRoot/../sdk/install/Release",
+ [string]$Iscc="$env:LOCALAPPDATA/Programs/InnoSetup/ISCC.exe",
  [string]$FeedUrl='',
  [string]$ReleaseBaseUrl='',
  [string]$QtRoot='C:/Qt/6.11.2/mingw_64',
@@ -8,9 +8,9 @@ param(
  [string]$QtLicenseRoot='C:/Qt/Licenses'
 )
 $ErrorActionPreference='Stop'
-$inSdkTree=Test-Path "$PSScriptRoot/../../include/nimby/sdk.h"
-$root=if($inSdkTree){[IO.Path]::GetFullPath("$PSScriptRoot/../..")}else{$PSScriptRoot}
-$tcoBuild=if($inSdkTree){Join-Path $root 'build/tco'}else{Join-Path $root 'build'}
+
+$root=$PSScriptRoot
+$tcoBuild=Join-Path $root 'build'
 $version='0.4.0'
 foreach($url in @($FeedUrl,$ReleaseBaseUrl)) { if($url -and ([uri]$url).Scheme -ne 'https'){throw 'Update URLs must use HTTPS'} }
 if(!(Test-Path -LiteralPath $Iscc)){throw "Install Inno Setup 6 and pass -Iscc. Missing: $Iscc"}

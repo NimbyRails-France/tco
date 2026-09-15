@@ -5,3 +5,5 @@
 /deps/
 *.user
 *.log
+/install/
+/CMakeUserPresets.json

@@ -12,6 +12,15 @@ get_target_property(SDK_PUBLIC_HEADERS NimbyRailsSDK::SDK INTERFACE_INCLUDE_DIRE
 target_include_directories(NimbyTco PRIVATE ${SDK_PUBLIC_HEADERS})
 target_link_libraries(NimbyTco PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Network)
 set_target_properties(NimbyTco PROPERTIES WIN32_EXECUTABLE TRUE)
+option(NRF_DEPLOY_QT "Deploy the Qt runtime for local Run/Debug" ON)
+if(WIN32 AND NRF_DEPLOY_QT)
+    find_program(NRF_WINDEPLOYQT windeployqt HINTS "${Qt6_DIR}/../../../bin" REQUIRED)
+    add_custom_command(TARGET NimbyTco POST_BUILD
+        COMMAND "${NRF_WINDEPLOYQT}" --release --no-translations --qmldir "${CMAKE_CURRENT_SOURCE_DIR}" "$<TARGET_FILE:NimbyTco>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE_DIR:NimbyRailsSDK::SDK>/libwinpthread-1.dll" "$<TARGET_FILE_DIR:NimbyTco>"
+        VERBATIM)
+endif()
 add_custom_command(TARGET NimbyTco POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "$<TARGET_FILE:NimbyRailsSDK::SDK>" "$<TARGET_FILE_DIR:NimbyTco>")
 

@@ -24,5 +24,3 @@ Les données synthétiques ne valident pas les offsets du jeu ni le chemin resta
 Le Path public reste l'appartenance au vecteur natif, sans interprétation des
 voies déjà parcourues. Une conservation par le jeu n'est pas un cache QML ; il
 faut identifier le train et observer cette transition avant de modifier le SDK.
-
-Version 0.2 : le même test couvre désormais les réservations et l'occupation, leur disponibilité indépendante, le filtrage par train, les retraits et l'expiration. Le Path calculé est masqué par défaut. Test synthétique : succès en 5,18 s. Validation réelle distincte : 14 captures et 14 positions distinctes en huit secondes, réservations/occupation disponibles sur 14 captures (voir reservations-live.txt). Les limites géométriques et d'atomicité restent documentées dans le README.
