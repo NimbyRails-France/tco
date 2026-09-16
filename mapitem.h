@@ -3,7 +3,7 @@
 #include <QVariantMap>
 #include <QImage>
 #include <QHash>
-#include <nimby/observation.h>
+#include "mapgeometry.h"
 #include <unordered_map>
 #include <vector>
 class MapItem : public QQuickPaintedItem {
@@ -29,7 +29,7 @@ signals:void dataChanged();
 protected:void geometryChange(const QRectF& now,const QRectF& before) override;
 private:
  QVariantMap data_;QByteArray geometry_;
- std::vector<NimbyTrackNode> nodes_;
+ std::vector<MapNode> nodes_;
  std::vector<unsigned> degree_;
  std::unordered_map<uint64_t,size_t> index_;
  QPointF center_;double scale_=1;bool fitted_=false,dirty_=true;
@@ -37,6 +37,6 @@ private:
  QHash<QString,QImage> signalImages_;
  bool showPath_=false;
  double signalSize_=64;
- QPointF point(const NimbyTrackNode& n)const;
+ QPointF point(const MapNode& n)const;
  void invalidate();
 };

@@ -1,5 +1,6 @@
 ﻿// Synthetic SDK snapshots only. No game process is opened or modified.
 #include "../backend.h"
+#include <nimby/client.hpp>
 #include "../mapitem.h"
 #include <QGuiApplication>
 #include <QElapsedTimer>
@@ -18,40 +19,47 @@ bool waitFor(const std::function<bool()>& predicate,int timeout=3500){QElapsedTi
 template<class T> uint32_t output(const std::vector<T>& values,T* out,uint32_t cap,uint32_t* n){*n=static_cast<uint32_t>(values.size());if(!out)return NIMBY_OK;if(cap<*n)return NIMBY_BUFFER_TOO_SMALL;std::copy(values.begin(),values.end(),out);return NIMBY_OK;}
 }
 extern "C" {
-uint32_t NimbySdk_OpenProcess(uint32_t,uint32_t,NimbySession* out) noexcept{*out=1;return NIMBY_OK;}
-uint32_t NimbySdk_CloseSession(NimbySession) noexcept{return NIMBY_OK;}
-uint32_t NimbySdk_CaptureSnapshot(NimbySession,NimbySnapshot* out) noexcept{
+uint32_t NimbyInternal_GetVersion(NimbySdkVersion* v) noexcept{v->abi_version=NIMBY_OBSERVATION_ABI_VERSION;v->major=0;v->minor=7;v->patch=0;return NIMBY_OK;}
+uint32_t NimbyInternal_GetSnapshotInfo(NimbySnapshot,NimbySnapshotInfo* out) noexcept{out->process_id=42;return NIMBY_OK;}
+uint32_t NimbyInternal_CopyTrainServices(NimbySnapshot,NimbyTrainService*,uint32_t,uint32_t* n) noexcept{*n=0;return NIMBY_OK;}
+uint32_t NimbyInternal_CopyTrainDetails(NimbySnapshot,NimbyTrainDetails*,uint32_t,uint32_t* n) noexcept{*n=0;return NIMBY_OK;}
+uint32_t NimbyInternal_CopyPlatforms(NimbySnapshot,NimbyPlatform*,uint32_t,uint32_t* n) noexcept{*n=0;return NIMBY_OK;}
+uint32_t NimbyInternal_CopyTrainLineStops(NimbySnapshot,uint64_t,NimbyLineStop*,uint32_t,uint32_t* n) noexcept{*n=0;return NIMBY_DATA_UNAVAILABLE;}
+
+uint32_t NimbyInternal_OpenProcess(uint32_t,uint32_t,NimbySession* out) noexcept{*out=1;return NIMBY_OK;}
+uint32_t NimbyInternal_CloseSession(NimbySession) noexcept{return NIMBY_OK;}
+uint32_t NimbyInternal_CaptureSnapshot(NimbySession,NimbySnapshot* out) noexcept{
  const int value=mode.load();if(delay.load()){waiting=true;while(delay.load())std::this_thread::sleep_for(std::chrono::milliseconds(10));waiting=false;}
  if(value==5){*out=0;return NIMBY_DATA_UNAVAILABLE;}*out=value+1;return NIMBY_OK;
 }
-uint32_t NimbySdk_ReleaseSnapshot(NimbySnapshot) noexcept{return NIMBY_OK;}
-uint32_t NimbySdk_CopyTrains(NimbySnapshot s,NimbyTrain* out,uint32_t cap,uint32_t* n) noexcept{
- std::vector<NimbyTrain> rows;if(s!=5){NimbyTrain t{};t.id=train;t.track_id=track;t.flags=NIMBY_TRAIN_PRESENT|NIMBY_TRAIN_POSITION_VALID;std::strcpy(t.name_utf8,"Fixture A");rows.push_back(t);t.id=train+0x10000;std::strcpy(t.name_utf8,"Fixture B");rows.push_back(t);}return output(rows,out,cap,n);
+uint32_t NimbyInternal_ReleaseSnapshot(NimbySnapshot) noexcept{return NIMBY_OK;}
+uint32_t NimbyInternal_CopyTrains(NimbySnapshot s,NimbyTrain* out,uint32_t cap,uint32_t* n) noexcept{
+ std::vector<NimbyTrain> rows;if(s!=5){NimbyTrain t{};t.id=train;t.track_id=track;t.flags=NIMBY_TRAIN_SPEED_VALID|NIMBY_TRAIN_POSITION_VALID;std::strcpy(t.name_utf8,"Fixture A");rows.push_back(t);t.id=train+0x10000;std::strcpy(t.name_utf8,"Fixture B");rows.push_back(t);}return output(rows,out,cap,n);
 }
-uint32_t NimbySdk_CopyTracks(NimbySnapshot,NimbyTrack* out,uint32_t cap,uint32_t* n) noexcept{return output(std::vector<NimbyTrack>{{track,0,30},{track+0x10000,0,30}},out,cap,n);}
-uint32_t NimbySdk_CopyStations(NimbySnapshot,NimbyStation*,uint32_t,uint32_t* n) noexcept{*n=0;return NIMBY_OK;}
-uint32_t NimbySdk_CopySignals(NimbySnapshot,NimbySignal* out,uint32_t cap,uint32_t* n) noexcept{return output(std::vector<NimbySignal>{{0x8000000000001,track,0.5,1,4}},out,cap,n);}
-uint32_t NimbySdk_CopySignalStates(NimbySnapshot s,NimbySignalState* out,uint32_t cap,uint32_t* n) noexcept{
+uint32_t NimbyInternal_CopyTracks(NimbySnapshot,NimbyTrack* out,uint32_t cap,uint32_t* n) noexcept{return output(std::vector<NimbyTrack>{{track,0,30},{track+0x10000,0,30}},out,cap,n);}
+uint32_t NimbyInternal_CopyStations(NimbySnapshot,NimbyStation*,uint32_t,uint32_t* n) noexcept{*n=0;return NIMBY_OK;}
+uint32_t NimbyInternal_CopySignals(NimbySnapshot,NimbySignal* out,uint32_t cap,uint32_t* n) noexcept{return output(std::vector<NimbySignal>{{0x8000000000001,track,0.5,1,4}},out,cap,n);}
+uint32_t NimbyInternal_CopySignalStates(NimbySnapshot s,NimbySignalState* out,uint32_t cap,uint32_t* n) noexcept{
  NimbySignalState state{};state.signal_id=0x8000000000001;
  if(s==1){state.flags=NIMBY_SIGNAL_TEXTURE_STATE_VALID;state.texture_state=10;}
  return output(std::vector<NimbySignalState>{state},out,cap,n);
 }
-uint32_t NimbySdk_CopySignalTextures(NimbySnapshot s,NimbySignalTexture* out,uint32_t cap,uint32_t* n) noexcept{
+uint32_t NimbyInternal_CopySignalTextures(NimbySnapshot s,NimbySignalTexture* out,uint32_t cap,uint32_t* n) noexcept{
  NimbySignalTexture texture{};texture.signal_id=0x8000000000001;
  if(s==1){texture.flags=NIMBY_SIGNAL_TEXTURE_REFERENCE_VALID|NIMBY_SIGNAL_TEXTURE_FILE_VALID;std::strcpy(texture.file_path_utf8,"C:/fixture/signal.svg");}
  return output(std::vector<NimbySignalTexture>{texture},out,cap,n);
 }
-uint32_t NimbySdk_CopyTrackNodes(NimbySnapshot,NimbyTrackNode* out,uint32_t cap,uint32_t* n) noexcept{return output(std::vector<NimbyTrackNode>{{track,0,0,0,0}},out,cap,n);}
-uint32_t NimbySdk_CopyTrainPathTracks(NimbySnapshot s,uint64_t,uint64_t* out,uint32_t cap,uint32_t* n) noexcept{
+uint32_t NimbyInternal_CopyTrackNodes(NimbySnapshot,NimbyTrackNode* out,uint32_t cap,uint32_t* n) noexcept{return output(std::vector<NimbyTrackNode>{{track,0,0,0,0}},out,cap,n);}
+uint32_t NimbyInternal_CopyTrainPathTracks(NimbySnapshot s,uint64_t,uint64_t* out,uint32_t cap,uint32_t* n) noexcept{
  *n=0;if(s==3||s==5)return NIMBY_DATA_UNAVAILABLE;std::vector<uint64_t> path;if(s!=4){path.push_back(track);if(s==1)path.push_back(track+0x10000);}return output(path,out,cap,n);
 }
-const char* NimbySdk_StatusString(uint32_t) noexcept{return "Synthetic capture failure";}
-uint32_t NimbySdk_CopyTrackReservations(NimbySnapshot s,NimbyTrackUsage* out,uint32_t cap,uint32_t* n) noexcept{
+const char* NimbyInternal_StatusString(uint32_t) noexcept{return "Synthetic capture failure";}
+uint32_t NimbyInternal_CopyTrackReservations(NimbySnapshot s,NimbyTrackUsage* out,uint32_t cap,uint32_t* n) noexcept{
  *n=0;if(s==3)return NIMBY_DATA_UNAVAILABLE;
  std::vector<NimbyTrackUsage> rows;if(s!=4&&s!=5){rows.push_back({train,track,.2,.9});rows.push_back({train+0x10000,track,.1,.3});if(s==1)rows.push_back({train,track+0x10000,0,1});}
  return output(rows,out,cap,n);
 }
-uint32_t NimbySdk_CopyTrackOccupations(NimbySnapshot s,NimbyTrackUsage* out,uint32_t cap,uint32_t* n) noexcept{
+uint32_t NimbyInternal_CopyTrackOccupations(NimbySnapshot s,NimbyTrackUsage* out,uint32_t cap,uint32_t* n) noexcept{
  if(s==4){*n=0;return NIMBY_DATA_UNAVAILABLE;}
  return output(std::vector<NimbyTrackUsage>{{train,track,.2,.3}},out,cap,n);
 }
@@ -92,7 +100,7 @@ int main(int argc,char** argv){
  mode=0;require(waitFor([&]{return size()==2;}),"train returns");
  mode=5;require(waitFor([&]{return !backend.data()["live"].toBool()&&size()==0;}),"capture error clears Path");
  backend.disconnectGame();require(size()==0,"disconnect clears Path");
- MapItem map;map.setWidth(400);map.setHeight(300);NimbyTrackNode node{track,0,0,0,0};
+ MapItem map;map.setWidth(400);map.setHeight(300);MapNode node{track,0,0,0,0};
  QVariantMap d{{"live",true},{"pathAvailable",true},{"mapGeometry",QByteArray(reinterpret_cast<char*>(&node),sizeof node)},{"mapPath",QVariantList{QString("1000000000001")}}};
  auto color=[&]{QImage image(400,300,QImage::Format_ARGB32_Premultiplied);QPainter p(&image);map.paint(&p);p.end();return image.pixelColor(200,150);};
  map.setData(d);require(color()==QColor("#070b0a"),"calculated Path hidden by default");

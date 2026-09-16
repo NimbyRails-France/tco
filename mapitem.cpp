@@ -6,11 +6,11 @@
 #include <cmath>
 MapItem::MapItem(QQuickItem* p):QQuickPaintedItem(p){setAntialiasing(true);}
 void MapItem::setSignalSize(double value){if(!std::isfinite(value))return;value=std::clamp(value,24.,96.);if(signalSize_!=value){signalSize_=value;update();emit dataChanged();}}
-QPointF MapItem::point(const NimbyTrackNode& n)const{return {(n.x-center_.x())*scale_+width()/2,(-n.y-center_.y())*scale_+height()/2};}
+QPointF MapItem::point(const MapNode& n)const{return {(n.x-center_.x())*scale_+width()/2,(-n.y-center_.y())*scale_+height()/2};}
 void MapItem::invalidate(){dirty_=true;update();}
 void MapItem::setData(const QVariantMap& v){
  data_=v;auto bytes=v.value("mapGeometry").toByteArray();
- if(bytes!=geometry_){geometry_=bytes;nodes_.resize(bytes.size()/sizeof(NimbyTrackNode));if(!nodes_.empty())std::memcpy(nodes_.data(),bytes.data(),nodes_.size()*sizeof(NimbyTrackNode));
+ if(bytes!=geometry_){geometry_=bytes;nodes_.resize(bytes.size()/sizeof(MapNode));if(!nodes_.empty())std::memcpy(nodes_.data(),bytes.data(),nodes_.size()*sizeof(MapNode));
  index_.clear();for(size_t i=0;i<nodes_.size();++i)index_.emplace(nodes_[i].id,i);
  degree_.assign(nodes_.size(),0);
  for(size_t i=0;i<nodes_.size();++i){const auto& n=nodes_[i];for(auto link:{n.link_a,n.link_b}){auto t=index_.find(link);if(t==index_.end())continue;const auto& target=nodes_[t->second];if(n.id>link&&(target.link_a==n.id||target.link_b==n.id))continue;++degree_[i];++degree_[t->second];}}

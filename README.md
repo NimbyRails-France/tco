@@ -1,4 +1,4 @@
-# Nimby TCO 0.4.0
+# Nimby TCO 0.5.0
 
 Tableau de contrôle optique expérimental pour NIMBY Rails, avec textures natives
 des signaux, clignotement observé, repères et taille réglable.
@@ -6,14 +6,14 @@ des signaux, clignotement observé, repères et taille réglable.
 ## Installation
 
 Utiliser [NRF Hub](https://github.com/NimbyRails-France/hub/releases/latest),
-ou télécharger `NimbyTco-0.4.0-Setup.exe` dans les
+ou télécharger `NimbyTco-0.5.0-Setup.exe` dans les
 [releases](https://github.com/NimbyRails-France/tco/releases/latest).
 Le ZIP portable est également disponible. Qt et le SDK sont inclus.
 Lancer le jeu et charger une partie, puis ouvrir le TCO. Laisser le PID vide
 pour la détection automatique. Le TCO fonctionne à côté du jeu ; ne pas placer
 son paquet dans le dossier du jeu.
 
-Le TCO requiert **SDK 0.6.x / ABI 1**. Il vérifie la DLL au démarrage et affiche
+Le TCO requiert **SDK 0.7.x / API C++20**. Il vérifie la DLL au démarrage et affiche
 une erreur si elle est absente, ancienne ou incomplète. `--check-sdk` permet
 un contrôle sans interface (code 0 compatible, code 3 incompatible).
 Le jeu reconnu est identifié par SHA-256 :
@@ -41,13 +41,21 @@ les réservations virtuelles des scripts. Les noms d'aspects ferroviaires ne son
 pas déduits des couleurs. Une donnée indisponible ne signifie pas voie libre.
 Aucune écriture dans le jeu n'est effectuée par le TCO.
 
+La liste des trains propose une recherche instantanée par nom, identifiant
+hexadécimal ou nom de ligne, sans distinction de casse. Les filtres de
+localisation et de vitesse se combinent avec la recherche. Une vitesse absente
+ou fournie par défaut par le SDK reste « non mesurée », jamais un arrêt
+mesuré. Le compteur indique les résultats visibles ; « Effacer » réinitialise
+les filtres. Ils concernent la liste des trains ; la carte conserve le réseau
+complet et ses occupations. La sélection du train reste active pendant la recherche.
+
 ## Construire
 
 Qt 6.11.2 MinGW x64, CMake et Ninja, puis :
 
 ```powershell
-powershell -File build.ps1 -SdkRoot C:/SDK/NimbyRailsSDK-0.6.0
-powershell -File package-installer.ps1 -SdkRoot C:/SDK/NimbyRailsSDK-0.6.0 -Iscc 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe' -FeedUrl 'https://github.com/NimbyRails-France/tco/releases/latest/download/tco-latest.json' -ReleaseBaseUrl 'https://github.com/NimbyRails-France/tco/releases/download/v0.4.0'
+powershell -File build.ps1 -SdkRoot C:/SDK/NimbyRailsFranceSDK-0.7.0
+powershell -File package-installer.ps1 -SdkRoot C:/SDK/NimbyRailsFranceSDK-0.7.0 -Iscc 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe' -FeedUrl 'https://github.com/NimbyRails-France/tco/releases/latest/download/tco-latest.json' -ReleaseBaseUrl 'https://github.com/NimbyRails-France/tco/releases/download/v0.5.0'
 ```
 
 La publication doit joindre `tco-latest.json`, `project.json`, l'installateur,

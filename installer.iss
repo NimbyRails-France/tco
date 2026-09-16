@@ -2,7 +2,7 @@
   #error Stage is required
 #endif
 #ifndef Version
-  #define Version "0.3.0"
+  #define Version "0.5.0"
 #endif
 [Setup]
 AppId={{9A75DC32-7B21-4838-8351-A07F9952B708}
@@ -19,7 +19,7 @@ Compression=lzma2
 SolidCompression=yes
 UninstallDisplayIcon={app}\NimbyTco.exe
 CloseApplications=yes
-CloseApplicationsFilter=NimbyTco.exe,NimbyRailsSDK.dll
+CloseApplicationsFilter=NimbyTco.exe,NimbyRailsFranceSDK.dll
 RestartApplications=no
 SetupMutex=NimbyTcoInstaller
 WizardStyle=modern

@@ -1,3 +1,4 @@
+import "TrainFilter.js" as TrainFilter
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -8,7 +9,7 @@ ApplicationWindow {
     required property var updater
     width: 1440; height: 900; minimumWidth: 1060; minimumHeight: 650
     visible: true
-    title: "Nimby TCO — observation du réseau"
+    title: "Nimby TCO v" + Qt.application.version + " — observation du réseau"
     color: "#0b1117"
     font.family: "Segoe UI"
     palette.windowText: "#d6e1eb"
@@ -36,6 +37,9 @@ ApplicationWindow {
     }
     property var tracks: live.tracks || []
     property var trains: live.trains || []
+    property var filteredTrains: trains.filter(function(train) {
+        return TrainFilter.matches(train, trainSearch.text, locationFilter.currentIndex, motionFilter.currentIndex)
+    })
     property var stations: [{id: "", name: "Toutes les gares"}].concat(live.stations || [])
     property string stationFilter: ""
     property var visibleTracks: tracks
@@ -53,7 +57,7 @@ ApplicationWindow {
             }
             ColumnLayout {
                 spacing: 0
-                Label { text: "NIMBY / TCO"; font.pixelSize: 24; font.weight: Font.DemiBold; color: "#edf5fa" }
+                Label { text: "NIMBY / TCO v" + Qt.application.version; font.pixelSize: 24; font.weight: Font.DemiBold; color: "#edf5fa" }
                 Label { text: "TABLEAU DE CONTRÔLE OPTIQUE · LABORATOIRE SDK"; font.pixelSize: 10; font.letterSpacing: 1.5; color: "#8a9ba9" }
             }
             Item { Layout.fillWidth: true }
@@ -85,26 +89,51 @@ ApplicationWindow {
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 18
             Rectangle {
-                Layout.preferredWidth: 252; Layout.fillHeight: true; color: "#111b24"; radius: 8; border.color: "#26333f"
+                Layout.preferredWidth: 290; Layout.fillHeight: true; color: "#111b24"; radius: 8; border.color: "#26333f"
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 16; spacing: 16
                     Label { text: "CIRCULATIONS"; font.bold: true; font.pixelSize: 12; font.letterSpacing: 1; color: "#a6b7c7" }
-                    Label { text: "Choisir un train pour afficher ses réservations."; color: "#8095a8"; font.pixelSize: 11 }
+                    Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "Choisir un train pour afficher ses réservations."; color: "#8095a8"; font.pixelSize: 11 }
+                    TextField {
+                        id: trainSearch; objectName: "trainSearch"
+                        Layout.fillWidth: true; placeholderText: "Nom, identifiant ou ligne…"; selectByMouse: true
+                        onTextChanged: trainList.positionViewAtBeginning()
+                    }
+                    ComboBox {
+                        id: locationFilter; objectName: "locationFilter"; Layout.fillWidth: true
+                        model: ["Toutes les localisations", "Trains localisés", "Trains non localisés"]
+                        onActivated: trainList.positionViewAtBeginning()
+                    }
+                    ComboBox {
+                        id: motionFilter; objectName: "motionFilter"; Layout.fillWidth: true
+                        model: ["Toutes les vitesses", "En mouvement", "À l’arrêt (mesuré)", "Vitesse non mesurée"]
+                        onActivated: trainList.positionViewAtBeginning()
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Label { Layout.fillWidth: true; text: root.filteredTrains.length+" / "+root.trains.length+" trains"; color: "#8fa2b3" }
+                        Button { text: "Effacer"; enabled: trainSearch.text!=="" || locationFilter.currentIndex!==0 || motionFilter.currentIndex!==0
+                            onClicked: { trainSearch.clear(); locationFilter.currentIndex=0; motionFilter.currentIndex=0; trainList.positionViewAtBeginning() } }
+                    }
                     ListView {
-                        Layout.fillHeight: true; Layout.fillWidth: true; model: root.trains; spacing: 8; clip: true
+                        id: trainList; objectName: "trainList"
+                        ScrollBar.vertical: ScrollBar {}
+                        Label { anchors.centerIn: parent; width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
+                            visible: trainList.count===0; text: root.live.live ? "Aucun train pour ces filtres" : "En attente des trains"; color: "#8fa2b3" }
+                        Layout.fillHeight: true; Layout.fillWidth: true; model: root.filteredTrains; spacing: 8; clip: true
                         delegate: Rectangle {
                             id: trainCard
                             required property var modelData
                             width: ListView.view.width; height: 92; radius: 6
-                            color: root.selectedTrack === modelData.track && modelData.positioned ? "#233a43" : "#1a2733"
-                            border.color: root.selectedTrack === modelData.track && modelData.positioned ? "#68d2d0" : "#263c4c"
+                            color: root.live.selectedTrainId === modelData.id ? "#233a43" : "#1a2733"
+                            border.color: root.live.selectedTrainId === modelData.id ? "#68d2d0" : "#263c4c"
                             Column {
                                 anchors.fill: parent; anchors.margins: 12; spacing: 6
-                                Label { text: trainCard.modelData.name; color: "#e7edf3"; font.bold: true; font.pixelSize: 14 }
-                                Label { text: trainCard.modelData.present ? trainCard.modelData.speed.toFixed(1)+" km/h" : "Vitesse indisponible"; color: "#efbe72"; font.pixelSize: 16 }
+                                Label { width: parent.width; elide: Text.ElideRight; text: trainCard.modelData.name || trainCard.modelData.id; color: "#e7edf3"; font.bold: true; font.pixelSize: 14 }
+                                Label { text: trainCard.modelData.speedAvailable && !trainCard.modelData.speedDefaulted ? trainCard.modelData.speed.toFixed(1)+" km/h" : "Vitesse non mesurée"; color: "#efbe72"; font.pixelSize: 16 }
                                 Label { text: trainCard.modelData.positioned ? "Voie …"+trainCard.modelData.track.slice(-8) : "Non localisé dans les états validés"; font.pixelSize: 10; color: "#8c9fac" }
                             }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { backend.selectTrain(trainCard.modelData.id); root.selectedTrack = trainCard.modelData.track; root.stationFilter=""; station.currentIndex=0; scope.currentIndex=3 } }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { backend.selectTrain(trainCard.modelData.id); root.selectedTrack = trainCard.modelData.track; root.stationFilter=""; station.currentIndex=0; if(trainCard.modelData.positioned) scope.currentIndex=3 } }
                         }
                     }
                     Rectangle {
@@ -206,7 +235,7 @@ ApplicationWindow {
                                         x: modelData.fraction*rail.width; width:1; height:10
                                         Rectangle { x:-13; y:-5; width:26; height:13; radius:2; color:"#efbe72"; border.color:"#ffe4ae" }
                                         Label { x:-48; y:17; width:96; horizontalAlignment:Text.AlignHCenter; text:marker.modelData.name; color:"#f4cc8b"; font.pixelSize:11; font.bold:true }
-                                        Label { x:-45; y:-57; width:90; horizontalAlignment:Text.AlignHCenter; text:(marker.modelData.direction>0?"→ ":"← ")+marker.modelData.speed.toFixed(1)+" km/h"; color:"#efbe72"; font.pixelSize:11 }
+                                        Label { x:-45; y:-57; width:90; horizontalAlignment:Text.AlignHCenter; text:!marker.modelData.speedAvailable || marker.modelData.speedDefaulted ? "Vitesse inconnue" : (marker.modelData.direction>0?"→ ":"← ")+marker.modelData.speed.toFixed(1)+" km/h"; color:"#efbe72"; font.pixelSize:11 }
                                     }
                                 }
                             }
@@ -222,7 +251,7 @@ ApplicationWindow {
             Label { text: root.live.status || "Déconnecté"; color:root.live.live?"#7bdbae":"#efbe72"; font.pixelSize:12; Layout.fillWidth:true; elide:Text.ElideRight }
             Label { text:updater.status; color:"#91a6b9"; font.pixelSize:11 }
             Button { text:updater.ready?"Redémarrer et mettre à jour":"Vérifier les mises à jour"; onClicked:updater.ready?updater.restart():updater.check() }
-                    Label { text: "NimbyRailsSDK 0.6 · observation expérimentale · "+(root.live.updated || "--:--:--"); color:"#758b9c"; font.pixelSize:11 }
+                    Label { text: "NimbyRailsFranceSDK 0.7 · observation expérimentale · "+(root.live.updated || "--:--:--"); color:"#758b9c"; font.pixelSize:11 }
         }
     }
 }

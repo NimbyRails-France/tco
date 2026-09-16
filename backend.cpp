@@ -1,5 +1,6 @@
 #include "backend.h"
-#include <nimby/observation.h>
+#include <nimby/client.hpp>
+#include "mapgeometry.h"
 #include <windows.h>
 #include <tlhelp32.h>
 #include <QDateTime>
@@ -46,55 +47,53 @@ uint32_t discover() {
     if(Process32FirstW(h,&p))do{if(_wcsicmp(p.szExeFile,L"NimbyRails.exe")==0){result=p.th32ProcessID;++count;}}while(Process32NextW(h,&p));
     CloseHandle(h);return count==1?result:0;
 }
-void check(uint32_t code){if(code!=NIMBY_OK)throw std::runtime_error(NimbySdk_StatusString(code));}
-template<class T,class F> std::vector<T> copy(NimbySnapshot h,F function) {
-    uint32_t n=0;check(function(h,nullptr,0,&n));std::vector<T> result(n);
-    check(function(h,result.data(),n,&n));return result;
-}
 QString kind(int value){switch(value){case 0:return "Sens unique";case 1:return "Arrêt quai";case 3:return "Balise";case 4:return "Chemin";case 5:return "Interdiction";case 6:return "Repère";default:return "Inconnu";}}
-struct Snapshot {NimbySnapshot value{};~Snapshot(){if(value)NimbySdk_ReleaseSnapshot(value);}};
-QVariantMap capture(NimbySession session,uint32_t pid,const ViewFilter& view) {
+QVariantMap capture(nimby::Client& client,uint32_t pid,const ViewFilter& view) {
     QElapsedTimer elapsed;elapsed.start();
-    Snapshot snap;check(NimbySdk_CaptureSnapshot(session,&snap.value));
-    const auto trains=copy<NimbyTrain>(snap.value,NimbySdk_CopyTrains);
-    const auto tracks=copy<NimbyTrack>(snap.value,NimbySdk_CopyTracks);
-    const auto stations=copy<NimbyStation>(snap.value,NimbySdk_CopyStations);
-    const auto signalRecords=copy<NimbySignal>(snap.value,NimbySdk_CopySignals);
-    std::map<uint64_t,NimbySignalState> signalStates;
-    for(const auto& state:copy<NimbySignalState>(snap.value,NimbySdk_CopySignalStates))signalStates.emplace(state.signal_id,state);
-    std::map<uint64_t,NimbySignalTexture> signalTextures;
-    for(const auto& texture:copy<NimbySignalTexture>(snap.value,NimbySdk_CopySignalTextures))signalTextures.emplace(texture.signal_id,texture);
-    auto texturePath=[&](uint64_t signal){auto found=signalTextures.find(signal);
-        return found!=signalTextures.end()&&(found->second.flags&NIMBY_SIGNAL_TEXTURE_FILE_VALID)
-            ?QString::fromUtf8(found->second.file_path_utf8):QString();};
+    const auto snap=client.capture();
+    const auto trains=snap->getAllTrains();
+    const auto tracks=snap->getAllTracks();
+    const auto stations=snap->getAllStations();
+    const auto signalRecords=snap->getAllSignals();
+    auto texturePath=[&](uint64_t signal){
+        const auto texture=snap->getSignalTextureById(signal);
+        return texture&&texture->getFilePath()?QString::fromStdString(*texture->getFilePath()):QString();
+    };
     std::map<uint64_t,QString> names;QVariantList stationRows,trainRows,trackRows;
-    for(const auto& s:stations){auto name=QString::fromUtf8(s.name_utf8);if(name.isEmpty())name="Gare "+id(s.id);names[s.id]=name;stationRows.push_back(QVariantMap{{"id",id(s.id)},{"name",name}});}
+    for(const auto& s:stations){auto name=QString::fromStdString(s.getName().value_or(""));if(name.isEmpty())name="Gare "+id(s.getId());names[s.getId()]=name;stationRows.push_back(QVariantMap{{"id",id(s.getId())},{"name",name}});}
     std::map<uint64_t,QVariantList> byTrack,signalsByTrack;
     for(const auto& t:trains){
-        const bool present=t.flags&NIMBY_TRAIN_PRESENT,position=t.flags&NIMBY_TRAIN_POSITION_VALID;
-        QVariantMap value{{"id",id(t.id)},{"name",QString::fromUtf8(t.name_utf8)},{"speed",t.speed_mps*3.6},{"present",present},
-            {"positioned",position},{"track",position?id(t.track_id):QString()},{"fraction",t.track_fraction},{"direction",t.direction}};
-        trainRows.push_back(value);if(position)byTrack[t.track_id].push_back(value);
+        const auto position=t.getPosition();
+        const auto speed=t.getSpeedKmh();
+        const auto service=snap->getTrainServiceById(t.getId());
+        const auto line=service?service->getLineName():std::nullopt;
+        QVariantMap value{{"id",id(t.getId())},{"name",QString::fromStdString(t.getName())},
+            {"speed",speed.value_or(0)},{"speedAvailable",speed.has_value()},{"speedDefaulted",t.isSpeedDefaulted()},
+            {"line",line?QString::fromStdString(*line):QString()},
+            {"positioned",position.has_value()},{"track",position?id(position->getTrackId()):QString()},
+            {"fraction",position?position->getFraction():0},{"direction",position?position->getDirection():0}};
+        trainRows.push_back(value);if(position)byTrack[position->getTrackId()].push_back(value);
     }
     int balises=0,signalStateCount=0,signalTextureCount=0;
-    for(const auto& s:signalRecords){if(s.kind==NIMBY_SIGNAL_BALISE)++balises;
-        const auto it=signalStates.find(s.id);
-        const bool available=it!=signalStates.end()&&(it->second.flags&NIMBY_SIGNAL_TEXTURE_STATE_VALID);
+    for(const auto& s:signalRecords){if(s.getKind()==NIMBY_SIGNAL_BALISE)++balises;
+        const auto state=snap->getSignalStateById(s.getId());
+        const auto selector=state?state->getTextureSelector():std::nullopt;
+        const bool available=selector.has_value();
         if(available)++signalStateCount;
-        const auto aspect=available?QString("État natif %1").arg(it->second.texture_state):QString("Inconnu");
-        const auto specific=it!=signalStates.end()&&(it->second.flags&NIMBY_SIGNAL_SPECIFIC_STATE_VALID)
-            ?QString::fromUtf8(it->second.system_utf8)+":"+QString::fromUtf8(it->second.specific_state_utf8):QString();
-        const auto path=texturePath(s.id);if(!path.isEmpty())++signalTextureCount;
-        signalsByTrack[s.track_id].push_back(QVariantMap{{"id",id(s.id)},{"kind",kind(s.kind)},{"balise",s.kind==NIMBY_SIGNAL_BALISE},{"marker",s.kind==NIMBY_SIGNAL_MARKER},
-            {"fraction",s.track_fraction},{"direction",s.direction},{"aspect",aspect},{"specificState",specific},{"stateAvailable",available},
+        const auto aspect=available?QString("État natif %1").arg(*selector):QString("Inconnu");
+        const auto specificState=state?state->getSpecificState():std::nullopt;
+        const auto specific=specificState?QString::fromStdString(specificState->system+":"+specificState->state):QString();
+        const auto path=texturePath(s.getId());if(!path.isEmpty())++signalTextureCount;
+        signalsByTrack[s.getTrackId()].push_back(QVariantMap{{"id",id(s.getId())},{"kind",kind(s.getKind())},{"balise",s.getKind()==NIMBY_SIGNAL_BALISE},{"marker",s.getKind()==NIMBY_SIGNAL_MARKER},
+            {"fraction",s.getFraction()},{"direction",s.getDirection()},{"aspect",aspect},{"specificState",specific},{"stateAvailable",available},
             {"texturePath",path},{"textureUrl",path.isEmpty()?QString():QUrl::fromLocalFile(path).toString()}});
     }
-    std::vector<const NimbyTrack*> filtered;
+    std::vector<const nimby::Track*> filtered;
     for(const auto& t:tracks) {
-        if(view.station && t.station_id!=view.station)continue;
-        if(view.scope==0&&!byTrack.contains(t.id))continue;
-        if(view.scope==1&&!signalsByTrack.contains(t.id))continue;
-        if(view.scope==3&&t.id!=view.track)continue;
+        if(view.station && t.getStationId().value_or(0)!=view.station)continue;
+        if(view.scope==0&&!byTrack.contains(t.getId()))continue;
+        if(view.scope==1&&!signalsByTrack.contains(t.getId()))continue;
+        if(view.scope==3&&t.getId()!=view.track)continue;
         filtered.push_back(&t);
     }
     constexpr size_t pageSize=500;
@@ -102,9 +101,9 @@ QVariantMap capture(NimbySession session,uint32_t pid,const ViewFilter& view) {
     const auto page=std::min<size_t>(view.page,pages-1);
     for(size_t i=page*pageSize;i<std::min(filtered.size(),(page+1)*pageSize);++i) {
         const auto& t=*filtered[i];
-        trackRows.push_back(QVariantMap{{"id",id(t.id)},{"stationId",t.station_id?id(t.station_id):QString()},
-        {"station",t.station_id?names[t.station_id]:QString("Hors gare")},{"limit",t.speed_limit_mps*3.6},
-        {"trains",byTrack[t.id]},{"signals",signalsByTrack[t.id]}});
+        trackRows.push_back(QVariantMap{{"id",id(t.getId())},{"stationId",t.getStationId().value_or(0)?id(t.getStationId().value_or(0)):QString()},
+        {"station",t.getStationId().value_or(0)?names[t.getStationId().value_or(0)]:QString("Hors gare")},{"limit",t.getSpeedLimitKmh()},
+        {"trains",byTrack[t.getId()]},{"signals",signalsByTrack[t.getId()]}});
     }
     auto result=empty("Connecté · PID "+QString::number(pid));result["live"]=true;
     result["tracks"]=trackRows;result["trains"]=trainRows;result["stations"]=stationRows;
@@ -114,74 +113,74 @@ QVariantMap capture(NimbySession session,uint32_t pid,const ViewFilter& view) {
     result["signalTextureCount"]=signalTextureCount;
     result["page"]=static_cast<int>(page);result["pages"]=static_cast<int>(pages);
     result["filteredCount"]=static_cast<int>(filtered.size());result["viewRevision"]=QVariant::fromValue<qulonglong>(view.revision);
-    const auto nodes=copy<NimbyTrackNode>(snap.value,NimbySdk_CopyTrackNodes);
-    const NimbyTrain* selected=nullptr;
-    for(const auto& t:trains)if(t.id==view.train)selected=&t;
-    if(!view.train)for(const auto& t:trains)if(t.flags&NIMBY_TRAIN_POSITION_VALID){selected=&t;break;}
+    std::vector<MapNode> nodes;
+    for(const auto& node:snap->getAllTrackNodes()){
+        const auto xy=node.getCoordinates();
+        nodes.push_back({node.getId(),node.getLinkAId().value_or(0),node.getLinkBId().value_or(0),xy.x,xy.y});
+    }
+    std::optional<nimby::Train> selected=snap->getTrainById(view.train);
+    if(!view.train)for(const auto& t:trains)if(t.getPosition()){selected=t;break;}
     QVariantList mapPath,mapSignals;uint32_t pathSize=0;bool pathAvailable=false;
     if(selected){
-        if(NimbySdk_CopyTrainPathTracks(snap.value,selected->id,nullptr,0,&pathSize)==NIMBY_OK){
-            std::vector<uint64_t> entries(pathSize);
-            check(NimbySdk_CopyTrainPathTracks(snap.value,selected->id,entries.data(),pathSize,&pathSize));
-            for(auto entry:entries)mapPath.push_back(id(entry));pathAvailable=true;
+        if(const auto path=snap->getPathTrackIdsForTrain(selected->getId())){
+            for(auto entry:*path)mapPath.push_back(id(entry));
+            pathSize=static_cast<uint32_t>(path->size());pathAvailable=true;
         }
     }
     for(const auto& s:signalRecords){
-        const auto state=signalStates.find(s.id);
-        const bool available=state!=signalStates.end()&&(state->second.flags&NIMBY_SIGNAL_TEXTURE_STATE_VALID);
-        mapSignals.push_back(QVariantMap{{"track",id(s.track_id)},{"balise",s.kind==NIMBY_SIGNAL_BALISE},{"marker",s.kind==NIMBY_SIGNAL_MARKER},
-            {"stateAvailable",available},{"textureState",available?state->second.texture_state:0},{"texturePath",texturePath(s.id)}});
+        const auto state=snap->getSignalStateById(s.getId());
+        const auto selector=state?state->getTextureSelector():std::nullopt;
+        const bool available=selector.has_value();
+        mapSignals.push_back(QVariantMap{{"track",id(s.getTrackId())},{"balise",s.getKind()==NIMBY_SIGNAL_BALISE},{"marker",s.getKind()==NIMBY_SIGNAL_MARKER},
+            {"stateAvailable",available},{"textureState",selector.value_or(0)},{"texturePath",texturePath(s.getId())}});
     }
-    result["mapGeometry"]=QByteArray(reinterpret_cast<const char*>(nodes.data()),static_cast<qsizetype>(nodes.size()*sizeof(NimbyTrackNode)));
+    result["mapGeometry"]=QByteArray(reinterpret_cast<const char*>(nodes.data()),static_cast<qsizetype>(nodes.size()*sizeof(MapNode)));
     result["mapPath"]=mapPath;result["mapSignals"]=mapSignals;result["pathAvailable"]=pathAvailable;result["pathSize"]=pathSize;
-    result["selectedTrainId"]=selected?id(selected->id):QString();
-    result["selectedTrackId"]=selected&&(selected->flags&NIMBY_TRAIN_POSITION_VALID)?id(selected->track_id):QString();
-    result["selectedTrain"]=selected?QString::fromUtf8(selected->name_utf8):QString();
-    auto usage=[&](auto function,const char* key,const char* availability,bool selectedOnly){
-        uint32_t n=0;const auto status=function(snap.value,nullptr,0,&n);
-        result[key]=QVariantList{};result[availability]=false;
-        if(status==NIMBY_DATA_UNAVAILABLE)return;
-        check(status);auto rows=copy<NimbyTrackUsage>(snap.value,function);QVariantList values;
-        for(const auto& row:rows)if(!selectedOnly||(selected&&row.train_id==selected->id))
-            values.push_back(QVariantMap{{"train",id(row.train_id)},{"track",id(row.track_id)},
-                {"begin",row.fraction_begin},{"end",row.fraction_end}});
-        result[key]=values;result[availability]=!selectedOnly||selected!=nullptr;
+    result["selectedTrainId"]=selected?id(selected->getId()):QString();
+    result["selectedTrackId"]=selected&&(selected->getPosition().has_value())?id(selected->getPosition()->getTrackId()):QString();
+    result["selectedTrain"]=selected?QString::fromStdString(selected->getName()):QString();
+    auto usage=[&](const auto& rows,const char* key,const char* availability,bool selectedOnly){
+        QVariantList values;
+        if(rows)for(const auto& row:*rows)if(!selectedOnly||(selected&&row.getTrainId()==selected->getId()))
+            values.push_back(QVariantMap{{"train",id(row.getTrainId())},{"track",id(row.getTrackId())},
+                {"begin",row.getBeginFraction()},{"end",row.getEndFraction()}});
+        result[key]=values;result[availability]=rows.has_value()&&(!selectedOnly||selected.has_value());
     };
-    usage(NimbySdk_CopyTrackReservations,"mapReservations","reservationsAvailable",true);
-    usage(NimbySdk_CopyTrackOccupations,"mapOccupations","occupationsAvailable",false);
+    usage(snap->getAllReservations(),"mapReservations","reservationsAvailable",true);
+    usage(snap->getAllOccupations(),"mapOccupations","occupationsAvailable",false);
     result["usageStale"]=false;
-    int positionedCount=0;for(const auto& t:trains)if(t.flags&NIMBY_TRAIN_POSITION_VALID)++positionedCount;
+    int positionedCount=0;for(const auto& t:trains)if(t.getPosition().has_value())++positionedCount;
     result["positionedCount"]=positionedCount;
     result["captureMs"]=elapsed.elapsed();
     result["updated"]=QDateTime::currentDateTime().toString("HH:mm:ss.zzz");return result;
 }
 }
 void ReaderThread::run() {
-    NimbySession session=0;uint64_t previous=0;uint32_t pid=0;int attempts=0;
+    std::unique_ptr<nimby::Client> session;uint64_t previous=0;uint32_t pid=0;int attempts=0;
     while(!isInterruptionRequested()) {
         QElapsedTimer cycle;cycle.start();
         const auto wanted=request.load();
-        if(wanted!=previous){if(session)NimbySdk_CloseSession(session);session=0;previous=wanted;pid=0;attempts=0;}
+        if(wanted!=previous){session.reset();previous=wanted;pid=0;attempts=0;}
         if(wanted&&!pending.load()) {
             try {
                 if(!session){
                     pid=static_cast<uint32_t>(wanted);if(!pid)pid=discover();
                     if(!pid)throw std::runtime_error("Aucun jeu unique détecté · démarrer le jeu ou saisir son PID");
-                    check(NimbySdk_OpenProcess(NIMBY_OBSERVATION_ABI_VERSION,pid,&session));
+                    session.reset(new nimby::Client(nimby::Client::connect(pid)));
                 }
                 ViewFilter filter;{std::lock_guard lock(viewMutex);filter=view;}
-                auto data=capture(session,pid,filter);
+                auto data=capture(*session,pid,filter);
                 if(attempts++==0)qInfo()<<"SDK snapshot:"<<data["trainCount"]<<data["trackCount"]<<data["signalCount"];
                 pending.store(true);emit received(wanted,data);
             }catch(const std::exception& e){
                 // A new attempt reopens the process, so a replaced PID never reuses a handle.
-                if(session)NimbySdk_CloseSession(session);session=0;
+                session.reset();
                 pending.store(true);emit received(wanted,empty(QString::fromUtf8(e.what())));
             }
         }
         msleep(session?static_cast<unsigned long>(std::max<qint64>(20,250-cycle.elapsed())):1000);
     }
-    if(session)NimbySdk_CloseSession(session);
+    session.reset();
 }
 Backend::Backend(QObject* parent):QObject(parent),data_(empty("Déconnecté")) {
     pathExpiry_.setSingleShot(true);pathExpiry_.setInterval(1500);
