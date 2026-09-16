@@ -1,4 +1,4 @@
-param([string]$QtRoot='C:/Qt/6.11.2/mingw_64', [string]$QtTools='C:/Qt/Tools', [string]$SdkRoot="$PSScriptRoot/../sdk/dist/NimbyRailsFranceSDK-0.7.0")
+param([string]$QtRoot='C:/Qt/6.11.2/mingw_64', [string]$QtTools='C:/Qt/Tools', [string]$SdkRoot="$PSScriptRoot/../sdk/dist/NimbyRailsFranceSDK-0.7.1")
 $ErrorActionPreference='Stop'
 $cmake=Join-Path $QtTools 'CMake_64/bin/cmake.exe'
 $compiler=Join-Path $QtTools 'mingw1310_64/bin/g++.exe'

@@ -19,7 +19,8 @@ bool waitFor(const std::function<bool()>& predicate,int timeout=3500){QElapsedTi
 template<class T> uint32_t output(const std::vector<T>& values,T* out,uint32_t cap,uint32_t* n){*n=static_cast<uint32_t>(values.size());if(!out)return NIMBY_OK;if(cap<*n)return NIMBY_BUFFER_TOO_SMALL;std::copy(values.begin(),values.end(),out);return NIMBY_OK;}
 }
 extern "C" {
-uint32_t NimbyInternal_GetVersion(NimbySdkVersion* v) noexcept{v->abi_version=NIMBY_OBSERVATION_ABI_VERSION;v->major=0;v->minor=7;v->patch=0;return NIMBY_OK;}
+uint32_t NimbyInternal_GetVersion(NimbySdkVersion* v) noexcept{v->abi_version=NIMBY_OBSERVATION_ABI_VERSION;v->major=0;v->minor=7;v->patch=1;return NIMBY_OK;}
+uint32_t NimbyInternal_GetSimulationClock(NimbySnapshot,NimbySimulationClock*) noexcept{return NIMBY_DATA_UNAVAILABLE;}
 uint32_t NimbyInternal_GetSnapshotInfo(NimbySnapshot,NimbySnapshotInfo* out) noexcept{out->process_id=42;return NIMBY_OK;}
 uint32_t NimbyInternal_CopyTrainServices(NimbySnapshot,NimbyTrainService*,uint32_t,uint32_t* n) noexcept{*n=0;return NIMBY_OK;}
 uint32_t NimbyInternal_CopyTrainDetails(NimbySnapshot,NimbyTrainDetails*,uint32_t,uint32_t* n) noexcept{*n=0;return NIMBY_OK;}
@@ -140,7 +141,7 @@ int main(int argc,char** argv){
  d["mapSignals"]=QVariantList{mapSignal};map.setData(d);
  const int overview=signalPixels(QColor("#00ffff"));
  map.zoomAt(1000000,200,150);
- require(signalPixels(QColor("#00ffff"))>overview*3,"textures grow only when zooming into detail");
+ require(std::abs(signalPixels(QColor("#00ffff"))-overview)<=4,"signal stays readable at the same screen size across zoom levels");
  mapSignal["stateAvailable"]=false;mapSignal["marker"]=true;d["mapSignals"]=QVariantList{mapSignal};map.setData(d);
  require(signalPixels(QColor("#00ffff"))==0,"unavailable state cannot render cached texture");
  require(signalPixels(QColor("#b9b9b9"))>0,"unavailable signal has neutral explicit fallback");
@@ -156,10 +157,25 @@ int main(int argc,char** argv){
  const auto detailed=renderZoom();
  require(countColor(detailed,QColor("#ff00ff"))>0&&countColor(detailed,QColor("#00ffff"))>0,"distinct native textures visible separately");
  zoomMap.zoomAt(.01,200,150);const auto grouped=renderZoom();
- require(countColor(grouped,QColor("#ff00ff"))==0&&countColor(grouped,QColor("#00ffff"))==0,"overlap never chooses one signal aspect for a group");
- require(zoomMap.signalTextAt(200,150).contains("native.red")&&zoomMap.signalTextAt(200,150).contains("native.yellow"),"group details preserve both signal identities and states");
+ require(countColor(grouped,QColor("#ff00ff"))>0&&countColor(grouped,QColor("#00ffff"))>0,"overlapping pair displays both native textures without extra zoom");
+ bool redHit=false,yellowHit=false;
+ for(int y=70;y<160;++y)for(int x=130;x<270;++x){
+  const auto detail=zoomMap.signalTextAt(x,y);
+  redHit|=detail.contains("native.red")&&!detail.contains("native.yellow");
+  yellowHit|=detail.contains("native.yellow")&&!detail.contains("native.red");
+ }
+ require(redHit&&yellowHit,"separated symbols each retain their own tooltip");
+ zoomData["mapSignals"]=QVariantList{second,first};zoomMap.setData(zoomData);
+ require(renderZoom()==grouped,"snapshot order cannot swap separated symbols");
+ zoomData["mapSignals"]=QVariantList{first,second};zoomMap.setData(zoomData);
  zoomMap.zoomAt(100,200,150);require(renderZoom()==detailed,"zoom round trip preserves exact signal textures and positions");
  zoomData["mapSignals"]=QVariantList{second,first};zoomMap.setData(zoomData);
  require(renderZoom()==detailed,"snapshot order cannot swap native aspects");
+ // A balise and reverse-facing signal can share exactly the same anchor,
+ // so zooming can never separate them geometrically.
+ first["direction"]=-1;second["balise"]=true;second["track"]=first["track"];
+ zoomData["mapSignals"]=QVariantList{first,second};zoomMap.setData(zoomData);
+ const auto coincident=renderZoom();
+ require(countColor(coincident,QColor("#ff00ff"))>0&&countColor(coincident,QColor("#00ffff"))>0,"coincident balise and reverse-facing signal both remain visible");
  return 0;
 }

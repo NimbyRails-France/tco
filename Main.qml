@@ -169,7 +169,7 @@ ApplicationWindow {
                         Label { text: "◇  Balise"; color: "#c5b8ef"; font.pixelSize: 11 }
                         Label { text: "M  Repère"; color: "#e6c789"; font.pixelSize: 11 }
                         Item { Layout.fillWidth: true }
-                        Label { text: "Taille max. : "+Math.round(root.signalSize); color: "#b8c7d2"; font.pixelSize: 11 }
+                        Label { text: "Taille signaux : "+Math.round(root.signalSize); color: "#b8c7d2"; font.pixelSize: 11 }
                         Slider { Layout.preferredWidth: 110; from:8; to:48; stepSize:2; value:root.signalSize; onMoved:root.signalSize=value }
                     }
                     Panel {

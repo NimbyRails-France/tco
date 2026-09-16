@@ -77,6 +77,6 @@ Rectangle {
  Rectangle {
   anchors.bottom: parent.bottom; width: parent.width; height: 42; color: "#df101b16"
   Label { anchors.fill: parent; anchors.margins: 8; color: "#a8b9a8"; font.pixelSize: 11; wrapMode: Text.WordWrap
-   text: "Vert : réservations du train sélectionné · rouge : occupation de tous les trains ("+(panel.liveData.usageStale?"périmée":panel.liveData.occupationsAvailable?panel.liveData.mapOccupations.length+" portions":"indisponible")+") · doré : Path optionnel\nNombre gris : signaux regroupés · ? : état/image indisponible · survol : identifiant et état natif · zoomer pour séparer les signaux" }
+   text: "Vert : réservations du train sélectionné · rouge : occupation de tous les trains ("+(panel.liveData.usageStale?"périmée":panel.liveData.occupationsAvailable?panel.liveData.mapOccupations.length+" portions":"indisponible")+") · doré : Path optionnel\nNombre gris : signaux regroupés · ? : état/image indisponible · survol : identifiant et état natif · traits : position sur la voie" }
  }
 }

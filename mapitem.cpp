@@ -1,4 +1,5 @@
 #include "mapitem.h"
+#include "signalimage.h"
 #include <QPainter>
 #include <QImageReader>
 #include <algorithm>
@@ -80,8 +81,9 @@ void MapItem::paint(QPainter* p){
  usage("mapReservations","reservationsAvailable",QColor("#65db87"),false);
  usage("mapOccupations","occupationsAvailable",QColor("#ff6b6b"),true);
  // Fixed placement per signal: never let a neighbour take its screen slot.
- // Overlapping symbols are explicitly grouped, with no representative aspect.
- const double symbolSize=signalSize_*std::clamp(std::sqrt(scale_/.05),.4,1.);
+ // Small overlaps are separated on screen, each with a leader to its own track.
+ // Large clusters retain a neutral count instead of covering the whole map.
+ const double symbolSize=signalSize_;
  struct Symbol {QVariantMap data;QPointF anchor;QRectF rect;QImage image;};
  std::vector<Symbol> symbols;
  for(const auto& value:data_.value("mapSignals").toList()){
@@ -93,8 +95,8 @@ void MapItem::paint(QPainter* p){
   if(m.value("stateAvailable").toBool()&&!path.isEmpty()){
    if(!signalImages_.contains(path)){
     if(signalImages_.size()>=256)signalImages_.clear();
-    QImageReader reader(path);auto size=reader.size();if(size.isValid())reader.setScaledSize(size.scaled(192,192,Qt::KeepAspectRatio));
-    signalImages_.insert(path,reader.read());
+    const auto decoded=loadSignalImage(path);
+    if(!decoded.isNull())signalImages_.insert(path,decoded);
    }
    image=signalImages_.value(path);
   }
@@ -119,8 +121,37 @@ void MapItem::paint(QPainter* p){
  for(size_t i=0;i<symbols.size();++i)groups[root(i)].push_back(i);
  signalHits_.clear();
  p->setFont(QFont("Segoe UI",8));
+ auto drawSymbol=[&](const Symbol& symbol,const QRectF& rect){
+  p->setPen(QPen(QColor("#b9b9b9"),1));
+  const auto& a=symbol.anchor;
+  p->drawLine(a,QPointF(std::clamp(a.x(),rect.left(),rect.right()),std::clamp(a.y(),rect.top(),rect.bottom())));
+  if(!symbol.image.isNull())p->drawImage(rect,symbol.image);
+  else{
+   p->setBrush(QColor("#242a28"));p->drawRoundedRect(rect,2,2);p->drawText(rect,Qt::AlignCenter,"?");
+  }
+  signalHits_.push_back({rect.adjusted(-3,-3,3,3),signalDescription(symbol.data)});
+ };
  for(const auto& [key,members]:groups){
   const auto& symbol=symbols[key];
+  if(members.size()>1&&members.size()<=6){
+   auto ordered=members;
+   std::sort(ordered.begin(),ordered.end(),[&](size_t a,size_t b){
+    return symbols[a].data.value("id").toString()<symbols[b].data.value("id").toString();
+   });
+   QPointF center;double cellWidth=0,cellHeight=0;
+   for(auto i:ordered){center+=symbols[i].anchor;cellWidth=std::max(cellWidth,symbols[i].rect.width());cellHeight=std::max(cellHeight,symbols[i].rect.height());}
+   center/=double(ordered.size());
+   cellWidth+=18;cellHeight+=12;
+   const int columns=std::min(3,int(ordered.size()));
+   const int rows=(int(ordered.size())+columns-1)/columns;
+   for(int i=0;i<int(ordered.size());++i){
+    const auto& item=symbols[ordered[i]];
+    const QPointF position(center.x()+(i%columns-(columns-1)/2.)*cellWidth,
+                           center.y()-12-(rows-i/columns-.5)*cellHeight);
+    drawSymbol(item,QRectF(position-QPointF(item.rect.width()/2,item.rect.height()/2),item.rect.size()));
+   }
+   continue;
+  }
   if(members.size()>1){
    QPointF center;QStringList details;
    for(auto i:members){center+=symbols[i].anchor;if(details.size()<20)details.append(signalDescription(symbols[i].data));}
@@ -133,14 +164,7 @@ void MapItem::paint(QPainter* p){
    signalHits_.push_back({badge,QString("%1 signaux regroupés (zoomer)\n").arg(members.size())+details.join("\n")});
    continue;
   }
-  p->setPen(QPen(QColor("#b9b9b9"),1));
-  const auto& a=symbol.anchor;const auto& rect=symbol.rect;
-  p->drawLine(a,QPointF(std::clamp(a.x(),rect.left(),rect.right()),std::clamp(a.y(),rect.top(),rect.bottom())));
-  if(!symbol.image.isNull())p->drawImage(rect,symbol.image);
-  else{
-   p->setBrush(QColor("#242a28"));p->drawRoundedRect(rect,2,2);p->drawText(rect,Qt::AlignCenter,"?");
-  }
-  signalHits_.push_back({rect.adjusted(-3,-3,3,3),signalDescription(symbol.data)});
+  drawSymbol(symbol,symbol.rect);
  }
  p->setFont(QFont("Segoe UI",9));
  for(auto v:data_.value("trains").toList()){auto m=v.toMap();if(!m["positioned"].toBool())continue;auto i=index_.find(m["track"].toString().toULongLong(nullptr,16));if(i==index_.end())continue;

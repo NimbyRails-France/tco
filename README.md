@@ -1,4 +1,4 @@
-# Nimby TCO 0.5.1
+# Nimby TCO 0.5.2
 
 Tableau de contrôle optique expérimental pour NIMBY Rails, avec textures natives
 des signaux, clignotement observé, repères et taille réglable.
@@ -6,14 +6,14 @@ des signaux, clignotement observé, repères et taille réglable.
 ## Installation
 
 Utiliser [NRF Hub](https://github.com/NimbyRails-France/hub/releases/latest),
-ou télécharger `NimbyTco-0.5.1-Setup.exe` dans les
+ou télécharger `NimbyTco-0.5.2-Setup.exe` dans les
 [releases](https://github.com/NimbyRails-France/tco/releases/latest).
 Le ZIP portable est également disponible. Qt et le SDK sont inclus.
 Lancer le jeu et charger une partie, puis ouvrir le TCO. Laisser le PID vide
 pour la détection automatique. Le TCO fonctionne à côté du jeu ; ne pas placer
 son paquet dans le dossier du jeu.
 
-Le TCO requiert **SDK 0.7.x / API C++20**. Il vérifie la DLL au démarrage et affiche
+Le TCO requiert **SDK 0.7.1 ou ultérieur en 0.7.x / API C++20**. Il vérifie la DLL au démarrage et affiche
 une erreur si elle est absente, ancienne ou incomplète. `--check-sdk` permet
 un contrôle sans interface (code 0 compatible, code 3 incompatible).
 Le jeu reconnu est identifié par SHA-256 :
@@ -35,9 +35,12 @@ calculé reste un calque facultatif. La liste permet de consulter les détails.
 Les textures des signaux suivent le sélecteur natif ; une balise ne recouvre
 plus le signal situé sur la même voie. Les données périmées sont effacées.
 
-Les textures sont petites en vue d’ensemble et grandissent avec le zoom.
-Les signaux qui se recouvrent sont regroupés sous un compteur gris, sans
-attribuer au groupe la couleur d’un signal. Un « ? » indique un état ou une
+La taille réglable des symboles reste constante à l’écran, même au dézoom.
+Les marges transparentes des images sont retirées pour rendre les mods lisibles.
+Jusqu’à six signaux superposés sont espacés à l’écran, chacun relié à sa voie
+par un trait et avec sa propre infobulle. Les groupes plus nombreux restent
+sous un compteur gris, sans attribuer au groupe la couleur d’un signal.
+Un « ? » indique un état ou une
 image indisponible. Survoler un signal ou un groupe affiche les identifiants
 et les états natifs disponibles. Le zoom ne choisit jamais une autre texture
 pour un même signal ; les changements réels du jeu continuent à être actualisés.
@@ -61,8 +64,8 @@ complet et ses occupations. La sélection du train reste active pendant la reche
 Qt 6.11.2 MinGW x64, CMake et Ninja, puis :
 
 ```powershell
-powershell -File build.ps1 -SdkRoot C:/SDK/NimbyRailsFranceSDK-0.7.0
-powershell -File package-installer.ps1 -SdkRoot C:/SDK/NimbyRailsFranceSDK-0.7.0 -Iscc 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe' -FeedUrl 'https://github.com/NimbyRails-France/tco/releases/latest/download/tco-latest.json' -ReleaseBaseUrl 'https://github.com/NimbyRails-France/tco/releases/download/v0.5.1'
+powershell -File build.ps1 -SdkRoot C:/SDK/NimbyRailsFranceSDK-0.7.1
+powershell -File package-installer.ps1 -SdkRoot C:/SDK/NimbyRailsFranceSDK-0.7.1 -Iscc 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe' -FeedUrl 'https://github.com/NimbyRails-France/tco/releases/latest/download/tco-latest.json' -ReleaseBaseUrl 'https://github.com/NimbyRails-France/tco/releases/download/v0.5.2'
 ```
 
 La publication doit joindre `tco-latest.json`, `project.json`, l'installateur,
