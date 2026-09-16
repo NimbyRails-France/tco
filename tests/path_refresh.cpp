@@ -120,16 +120,46 @@ int main(int argc,char** argv){
  auto signalPixels=[&](const QColor& target){QImage image(400,300,QImage::Format_ARGB32_Premultiplied);QPainter p(&image);map.paint(&p);p.end();int count=0;for(int y=0;y<300;++y)for(int x=0;x<400;++x)if(image.pixelColor(x,y)==target)++count;return count;};
  QVariantMap mapSignal{{"track",QString("1000000000001")},{"stateAvailable",true},{"texturePath",texturePath}};
  d["mapSignals"]=QVariantList{mapSignal};map.setData(d);map.zoomAt(0.000001,200,150);
- map.setSignalSize(32);const int small=signalPixels(QColor("#ff00ff"));require(small>0,"native texture visible at overview zoom");
- map.setSignalSize(64);require(signalPixels(QColor("#ff00ff"))>small*3,"texture resize changes rendered size");
+ map.setSignalSize(16);const int small=signalPixels(QColor("#ff00ff"));require(small>0,"native texture visible at overview zoom");
+ map.setSignalSize(32);require(signalPixels(QColor("#ff00ff"))>small*3,"texture resize changes rendered size");
  texture.fill(QColor("#00ffff"));const auto nextTexturePath=assets.filePath("next.png");require(texture.save(nextTexturePath),"second texture fixture written");
  mapSignal["texturePath"]=nextTexturePath;d["mapSignals"]=QVariantList{mapSignal};map.setData(d);
  require(signalPixels(QColor("#ff00ff"))==0&&signalPixels(QColor("#00ffff"))>0,"native state change replaces texture immediately");
  QVariantMap balise=mapSignal;balise["texturePath"]=texturePath;balise["balise"]=true;
  d["mapSignals"]=QVariantList{mapSignal,balise};map.setData(d);
  require(signalPixels(QColor("#ff00ff"))>small*3&&signalPixels(QColor("#00ffff"))>small*3,"balise on same track cannot cover signal texture");
+ // Hundreds of signals at one anchor must never spread over the map.
+ QVariantList crowded;for(int i=0;i<300;++i)crowded.append(mapSignal);
+ d["mapSignals"]=crowded;map.setData(d);
+ QImage denseImage(400,300,QImage::Format_ARGB32_Premultiplied);
+ {QPainter painter(&denseImage);map.paint(&painter);}
+ int distant=0;
+ for(int y=0;y<300;++y)for(int x=0;x<400;++x)
+  if((std::abs(x-200)>40||std::abs(y-150)>40)&&denseImage.pixelColor(x,y)!=QColor("#070b0a"))++distant;
+ require(distant==0,"dense signals stay near their real anchor without long leaders");
+ d["mapSignals"]=QVariantList{mapSignal};map.setData(d);
+ const int overview=signalPixels(QColor("#00ffff"));
+ map.zoomAt(1000000,200,150);
+ require(signalPixels(QColor("#00ffff"))>overview*3,"textures grow only when zooming into detail");
  mapSignal["stateAvailable"]=false;mapSignal["marker"]=true;d["mapSignals"]=QVariantList{mapSignal};map.setData(d);
  require(signalPixels(QColor("#00ffff"))==0,"unavailable state cannot render cached texture");
- require(signalPixels(QColor("#e6c789"))>0,"marker fallback visible at overview zoom");
+ require(signalPixels(QColor("#b9b9b9"))>0,"unavailable signal has neutral explicit fallback");
+ // Opposite native textures must not substitute for each other across zoom.
+ MapItem zoomMap;zoomMap.setWidth(400);zoomMap.setHeight(300);zoomMap.setSignalSize(20);
+ MapNode pair[]={{track,0,0,0,0},{track+1,0,0,1000,0}};
+ QVariantMap first{{"id","A"},{"track",QString::number(track,16)},{"stateAvailable",true},{"texturePath",texturePath},{"specificState","native.red"}};
+ QVariantMap second=first;second["id"]="B";second["track"]=QString::number(track+1,16);second["texturePath"]=nextTexturePath;second["specificState"]="native.yellow";
+ QVariantMap zoomData{{"mapGeometry",QByteArray(reinterpret_cast<char*>(pair),sizeof pair)},{"mapSignals",QVariantList{first,second}}};
+ zoomMap.setData(zoomData);
+ auto renderZoom=[&]{QImage img(400,300,QImage::Format_ARGB32_Premultiplied);QPainter painter(&img);zoomMap.paint(&painter);return img;};
+ auto countColor=[&](const QImage& img,QColor target){int count=0;for(int y=0;y<img.height();++y)for(int x=0;x<img.width();++x)if(img.pixelColor(x,y)==target)++count;return count;};
+ const auto detailed=renderZoom();
+ require(countColor(detailed,QColor("#ff00ff"))>0&&countColor(detailed,QColor("#00ffff"))>0,"distinct native textures visible separately");
+ zoomMap.zoomAt(.01,200,150);const auto grouped=renderZoom();
+ require(countColor(grouped,QColor("#ff00ff"))==0&&countColor(grouped,QColor("#00ffff"))==0,"overlap never chooses one signal aspect for a group");
+ require(zoomMap.signalTextAt(200,150).contains("native.red")&&zoomMap.signalTextAt(200,150).contains("native.yellow"),"group details preserve both signal identities and states");
+ zoomMap.zoomAt(100,200,150);require(renderZoom()==detailed,"zoom round trip preserves exact signal textures and positions");
+ zoomData["mapSignals"]=QVariantList{second,first};zoomMap.setData(zoomData);
+ require(renderZoom()==detailed,"snapshot order cannot swap native aspects");
  return 0;
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(NimbyTco VERSION 0.5.0 LANGUAGES CXX)
+project(NimbyTco VERSION 0.5.1 LANGUAGES CXX)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2 Network)
 find_package(NimbyRailsFranceSDK 0.7 CONFIG REQUIRED)
 qt_standard_project_setup(REQUIRES 6.5)

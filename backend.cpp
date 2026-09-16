@@ -38,7 +38,7 @@ void clearSignalStates(QVariantMap& data) {
         row["signals"]=signalRows;track=row;}
     data["tracks"]=tracks;
     auto mapSignals=data.value("mapSignals").toList();
-    for(auto& signal:mapSignals){auto value=signal.toMap();value["stateAvailable"]=false;value["texturePath"]=QString();signal=value;}
+    for(auto& signal:mapSignals){auto value=signal.toMap();value["stateAvailable"]=false;value["specificState"]=QString();value["texturePath"]=QString();signal=value;}
     data["mapSignals"]=mapSignals;data["signalStateCount"]=0;data["signalTextureCount"]=0;
 }
 uint32_t discover() {
@@ -131,7 +131,11 @@ QVariantMap capture(nimby::Client& client,uint32_t pid,const ViewFilter& view) {
         const auto state=snap->getSignalStateById(s.getId());
         const auto selector=state?state->getTextureSelector():std::nullopt;
         const bool available=selector.has_value();
-        mapSignals.push_back(QVariantMap{{"track",id(s.getTrackId())},{"balise",s.getKind()==NIMBY_SIGNAL_BALISE},{"marker",s.getKind()==NIMBY_SIGNAL_MARKER},
+        const auto specific=state?state->getSpecificState():std::nullopt;
+        mapSignals.push_back(QVariantMap{{"id",id(s.getId())},{"kind",kind(s.getKind())},
+            {"direction",s.getDirection()},{"fraction",s.getFraction()},
+            {"specificState",specific?QString::fromStdString(specific->system+":"+specific->state):QString()},
+            {"track",id(s.getTrackId())},{"balise",s.getKind()==NIMBY_SIGNAL_BALISE},{"marker",s.getKind()==NIMBY_SIGNAL_MARKER},
             {"stateAvailable",available},{"textureState",selector.value_or(0)},{"texturePath",texturePath(s.getId())}});
     }
     result["mapGeometry"]=QByteArray(reinterpret_cast<const char*>(nodes.data()),static_cast<qsizetype>(nodes.size()*sizeof(MapNode)));

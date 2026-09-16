@@ -4,12 +4,13 @@
 #include <algorithm>
 #include <cstring>
 #include <cmath>
+#include <map>
 MapItem::MapItem(QQuickItem* p):QQuickPaintedItem(p){setAntialiasing(true);}
-void MapItem::setSignalSize(double value){if(!std::isfinite(value))return;value=std::clamp(value,24.,96.);if(signalSize_!=value){signalSize_=value;update();emit dataChanged();}}
+void MapItem::setSignalSize(double value){if(!std::isfinite(value))return;value=std::clamp(value,8.,48.);if(signalSize_!=value){signalSize_=value;update();emit dataChanged();}}
 QPointF MapItem::point(const MapNode& n)const{return {(n.x-center_.x())*scale_+width()/2,(-n.y-center_.y())*scale_+height()/2};}
-void MapItem::invalidate(){dirty_=true;update();}
+void MapItem::invalidate(){signalHits_.clear();dirty_=true;update();}
 void MapItem::setData(const QVariantMap& v){
- data_=v;auto bytes=v.value("mapGeometry").toByteArray();
+ signalHits_.clear();data_=v;auto bytes=v.value("mapGeometry").toByteArray();
  if(bytes!=geometry_){geometry_=bytes;nodes_.resize(bytes.size()/sizeof(MapNode));if(!nodes_.empty())std::memcpy(nodes_.data(),bytes.data(),nodes_.size()*sizeof(MapNode));
  index_.clear();for(size_t i=0;i<nodes_.size();++i)index_.emplace(nodes_[i].id,i);
  degree_.assign(nodes_.size(),0);
@@ -40,6 +41,15 @@ QVariantList MapItem::trainsAt(double x,double y) const{
  std::stable_sort(hits.begin(),hits.end(),[](const auto& a,const auto& b){return a.first<b.first;});
  QVariantList result;for(const auto& hit:hits)result.append(hit.second);return result;
 }
+QString MapItem::signalDescription(const QVariantMap& signal) const {
+ const auto text=signal.value("specificState").toString();
+ return signal.value("kind").toString()+" "+signal.value("id").toString()+" | "+
+  (signal.value("stateAvailable").toBool()?(text.isEmpty()?QString("État natif %1").arg(signal.value("textureState").toInt()):text):QString("État indisponible"));
+}
+QString MapItem::signalTextAt(double x,double y) const {
+ for(const auto& hit:signalHits_)if(hit.first.contains(QPointF(x,y)))return hit.second;
+ return {};
+}
 void MapItem::paint(QPainter* p){
  if(width()<1||height()<1)return;
  if(dirty_||background_.size()!=QSize(int(width()),int(height()))){
@@ -69,46 +79,69 @@ void MapItem::paint(QPainter* p){
  };
  usage("mapReservations","reservationsAvailable",QColor("#65db87"),false);
  usage("mapOccupations","occupationsAvailable",QColor("#ff6b6b"),true);
- // Several signals can share a track anchor. Keep their screen rectangles
- // separate so a balise cannot cover the changing lamps of a path signal.
- std::vector<QRectF> signalRects;
- auto placeSignal=[&](QPointF anchor,QSizeF size){
-  const QRectF initial(anchor+QPointF(-size.width()/2,-size.height()-3),size);
-  QRectF chosen=initial;
-  for(int attempt=0;attempt<256;++attempt){
-   const int column=attempt%9;const int dx=column==0?0:((column+1)/2)*(column%2?1:-1);
-   const int row=attempt/9;
-   const int dy=row==0?0:((row+1)/2)*(row%2?-1:1);
-   chosen=initial.translated(dx*(signalSize_+6),dy*(signalSize_+6));
-   if(chosen.left()<0||chosen.right()>width()||chosen.top()<0||chosen.bottom()>height())continue;
-   bool overlaps=false;for(const auto& used:signalRects)if(used.adjusted(-3,-3,3,3).intersects(chosen)){overlaps=true;break;}
-   if(!overlaps)break;
-  }
-  signalRects.push_back(chosen);return chosen;
- };
- {for(auto v:data_.value("mapSignals").toList()){auto m=v.toMap();auto i=index_.find(m["track"].toString().toULongLong(nullptr,16));if(i==index_.end())continue;auto a=point(nodes_[i->second]);if(!visible(a))continue;
-  p->setPen(QPen(QColor(m["marker"].toBool()?"#e6c789":"#80bdd8"),1.5));p->setBrush(QColor("#070b0a"));
-  p->drawLine(a,a+QPointF(0,-8));
-  const auto path=m["texturePath"].toString();
-  if(!path.isEmpty()&&m["stateAvailable"].toBool()){
-   auto image=signalImages_.constFind(path);
-   if(image==signalImages_.cend()){
+ // Fixed placement per signal: never let a neighbour take its screen slot.
+ // Overlapping symbols are explicitly grouped, with no representative aspect.
+ const double symbolSize=signalSize_*std::clamp(std::sqrt(scale_/.05),.4,1.);
+ struct Symbol {QVariantMap data;QPointF anchor;QRectF rect;QImage image;};
+ std::vector<Symbol> symbols;
+ for(const auto& value:data_.value("mapSignals").toList()){
+  const auto m=value.toMap();auto it=index_.find(m.value("track").toString().toULongLong(nullptr,16));
+  if(it==index_.end())continue;
+  const auto anchor=point(nodes_[it->second]);
+  if(!QRectF(-64,-64,width()+128,height()+128).contains(anchor))continue;
+  QImage image;const auto path=m.value("texturePath").toString();
+  if(m.value("stateAvailable").toBool()&&!path.isEmpty()){
+   if(!signalImages_.contains(path)){
     if(signalImages_.size()>=256)signalImages_.clear();
     QImageReader reader(path);auto size=reader.size();if(size.isValid())reader.setScaledSize(size.scaled(192,192,Qt::KeepAspectRatio));
-    signalImages_.insert(path,reader.read());image=signalImages_.constFind(path);
+    signalImages_.insert(path,reader.read());
    }
-   if(!image->isNull()){
-    const QSizeF size=image->size().scaled(int(signalSize_),int(signalSize_),Qt::KeepAspectRatio);
-    const auto rect=placeSignal(a,size);
-    p->drawLine(a,QPointF(rect.center().x(),rect.bottom()));
-    p->drawImage(rect,*image);continue;
-   }
+   image=signalImages_.value(path);
   }
-  if(m["marker"].toBool()){
-   p->drawRect(QRectF(a+QPointF(-6,-23),QSizeF(12,15)));p->drawText(a+QPointF(-4,-11),"M");
-  }else if(m["balise"].toBool())p->drawRect(QRectF(a+QPointF(-3,-14),QSizeF(6,6)));else p->drawEllipse(a+QPointF(0,-11),3,3);
-  if(scale_>.08&&m["stateAvailable"].toBool())p->drawText(a+QPointF(6,-9),QString("E%1").arg(m["textureState"].toInt()));
- }}
+  const QSizeF size=image.isNull()?QSizeF(10,12):image.size().scaled(std::max(4,int(symbolSize)),std::max(4,int(symbolSize)),Qt::KeepAspectRatio);
+  const bool below=m.value("balise").toBool()||m.value("direction").toInt()<0;
+  const QPointF offset(-size.width()/2,below?3:-size.height()-3);
+  symbols.push_back({m,anchor,QRectF(anchor+offset,size),image});
+ }
+ std::vector<size_t> parent(symbols.size());for(size_t i=0;i<parent.size();++i)parent[i]=i;
+ auto root=[&](size_t i){while(parent[i]!=i){parent[i]=parent[parent[i]];i=parent[i];}return i;};
+ QHash<quint64,QList<size_t>> cells;
+ for(size_t i=0;i<symbols.size();++i){
+  const auto rect=symbols[i].rect.adjusted(-1,-1,1,1);
+  for(int y=int(std::floor(rect.top()/64));y<=int(std::floor(rect.bottom()/64));++y)
+   for(int x=int(std::floor(rect.left()/64));x<=int(std::floor(rect.right()/64));++x){
+    auto& nearby=cells[(quint64(quint32(x))<<32)|quint32(y)];
+    for(auto j:nearby)if(symbols[j].rect.adjusted(-1,-1,1,1).intersects(rect))parent[root(i)]=root(j);
+    nearby.append(i);
+   }
+ }
+ std::map<size_t,std::vector<size_t>> groups;
+ for(size_t i=0;i<symbols.size();++i)groups[root(i)].push_back(i);
+ signalHits_.clear();
+ p->setFont(QFont("Segoe UI",8));
+ for(const auto& [key,members]:groups){
+  const auto& symbol=symbols[key];
+  if(members.size()>1){
+   QPointF center;QStringList details;
+   for(auto i:members){center+=symbols[i].anchor;if(details.size()<20)details.append(signalDescription(symbols[i].data));}
+   if(members.size()>20)details.append(QString("… et %1 autres signaux").arg(members.size()-20));
+   center/=double(members.size());
+   const QString label=QString::number(members.size());
+   const QRectF badge(center+QPointF(-14,-8),QSizeF(28,16));
+   p->setPen(QColor("#b9b9b9"));p->setBrush(QColor("#242a28"));p->drawRoundedRect(badge,3,3);
+   p->drawText(badge,Qt::AlignCenter,label);
+   signalHits_.push_back({badge,QString("%1 signaux regroupés (zoomer)\n").arg(members.size())+details.join("\n")});
+   continue;
+  }
+  p->setPen(QPen(QColor("#b9b9b9"),1));
+  const auto& a=symbol.anchor;const auto& rect=symbol.rect;
+  p->drawLine(a,QPointF(std::clamp(a.x(),rect.left(),rect.right()),std::clamp(a.y(),rect.top(),rect.bottom())));
+  if(!symbol.image.isNull())p->drawImage(rect,symbol.image);
+  else{
+   p->setBrush(QColor("#242a28"));p->drawRoundedRect(rect,2,2);p->drawText(rect,Qt::AlignCenter,"?");
+  }
+  signalHits_.push_back({rect.adjusted(-3,-3,3,3),signalDescription(symbol.data)});
+ }
  p->setFont(QFont("Segoe UI",9));
  for(auto v:data_.value("trains").toList()){auto m=v.toMap();if(!m["positioned"].toBool())continue;auto i=index_.find(m["track"].toString().toULongLong(nullptr,16));if(i==index_.end())continue;
   auto a=point(nodes_[i->second]);if(!visible(a))continue;const bool selected=m["id"]==data_.value("selectedTrainId");

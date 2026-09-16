@@ -11,7 +11,7 @@ $ErrorActionPreference='Stop'
 
 $root=$PSScriptRoot
 $tcoBuild=Join-Path $root 'build'
-$version='0.5.0'
+$version='0.5.1'
 foreach($url in @($FeedUrl,$ReleaseBaseUrl)) { if($url -and ([uri]$url).Scheme -ne 'https'){throw 'Update URLs must use HTTPS'} }
 if(!(Test-Path -LiteralPath $Iscc)){throw "Install Inno Setup 6 and pass -Iscc. Missing: $Iscc"}
 & "$PSScriptRoot/build.ps1" -SdkRoot $SdkRoot -QtRoot $QtRoot -QtTools $QtTools

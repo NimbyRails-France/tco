@@ -5,17 +5,25 @@ import Nimby.Map 1.0
 Rectangle {
  id: panel
  required property var liveData
- property real signalSize: 64
+ property real signalSize: 20
  signal trainSelected(string trainId)
  color: "#070b0a"; border.color: "#38493f"; clip: true
  RailMap { id: map; anchors.fill: parent; anchors.topMargin:48; anchors.bottomMargin:42; snapshotData: panel.liveData; showCalculatedPath: pathToggle.checked; signalSize: panel.signalSize }
  MouseArea {
+  id: mapMouse
+  hoverEnabled: true
+  property string signalText: ""
+  ToolTip.visible: containsMouse && !pressed && signalText.length>0
+  ToolTip.text: signalText
+  ToolTip.delay: 350
+  Timer { interval: 250; running: mapMouse.containsMouse && !mapMouse.pressed; repeat: true
+   onTriggered: mapMouse.signalText=map.signalTextAt(mapMouse.mouseX,mapMouse.mouseY) }
   anchors.fill: map; property real lastX; property real lastY
   property real pressX; property real pressY; property bool moved: false
   cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
   onPressed: mouse=>{lastX=pressX=mouse.x;lastY=pressY=mouse.y;moved=false;trainPicker.close()}
   onPositionChanged: mouse=>{
-   if(!pressed)return
+   if(!pressed){signalText=map.signalTextAt(mouse.x,mouse.y);return}
    if(!moved && Math.hypot(mouse.x-pressX,mouse.y-pressY)<6)return
    moved=true;map.moveView(mouse.x-lastX,mouse.y-lastY);lastX=mouse.x;lastY=mouse.y
   }
@@ -69,6 +77,6 @@ Rectangle {
  Rectangle {
   anchors.bottom: parent.bottom; width: parent.width; height: 42; color: "#df101b16"
   Label { anchors.fill: parent; anchors.margins: 8; color: "#a8b9a8"; font.pixelSize: 11; wrapMode: Text.WordWrap
-   text: "Vert : réservations du train sélectionné · rouge : occupation de tous les trains ("+(panel.liveData.usageStale?"périmée":panel.liveData.occupationsAvailable?panel.liveData.mapOccupations.length+" portions":"indisponible")+") · doré : Path optionnel\nSignaux : textures du jeu et des mods · E<n> si image indisponible · aucune donnée ≠ voie libre · molette : zoom, glisser : déplacement" }
+   text: "Vert : réservations du train sélectionné · rouge : occupation de tous les trains ("+(panel.liveData.usageStale?"périmée":panel.liveData.occupationsAvailable?panel.liveData.mapOccupations.length+" portions":"indisponible")+") · doré : Path optionnel\nNombre gris : signaux regroupés · ? : état/image indisponible · survol : identifiant et état natif · zoomer pour séparer les signaux" }
  }
 }

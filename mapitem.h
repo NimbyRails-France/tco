@@ -24,6 +24,7 @@ public:
  Q_INVOKABLE void moveView(double x,double y);
  Q_INVOKABLE void zoomAt(double factor,double x,double y);
  Q_INVOKABLE void focusTrain();
+ Q_INVOKABLE QString signalTextAt(double x,double y) const;
  Q_INVOKABLE QVariantList trainsAt(double x,double y) const;
 signals:void dataChanged();
 protected:void geometryChange(const QRectF& now,const QRectF& before) override;
@@ -36,7 +37,9 @@ private:
  QImage background_;
  QHash<QString,QImage> signalImages_;
  bool showPath_=false;
- double signalSize_=64;
+ double signalSize_=20;
+ std::vector<std::pair<QRectF,QString>> signalHits_;
+ QString signalDescription(const QVariantMap& signal) const;
  QPointF point(const MapNode& n)const;
  void invalidate();
 };

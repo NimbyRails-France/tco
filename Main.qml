@@ -28,7 +28,7 @@ ApplicationWindow {
         return "Signal hors de la vue courante"
     }
     property bool panelMode: true
-    property real signalSize: 64
+    property real signalSize: 20
     Connections {
         target: root.backend
         function onChanged() {
@@ -169,8 +169,8 @@ ApplicationWindow {
                         Label { text: "◇  Balise"; color: "#c5b8ef"; font.pixelSize: 11 }
                         Label { text: "M  Repère"; color: "#e6c789"; font.pixelSize: 11 }
                         Item { Layout.fillWidth: true }
-                        Label { text: "Taille : "+Math.round(root.signalSize); color: "#b8c7d2"; font.pixelSize: 11 }
-                        Slider { Layout.preferredWidth: 110; from:24; to:96; stepSize:4; value:root.signalSize; onMoved:root.signalSize=value }
+                        Label { text: "Taille max. : "+Math.round(root.signalSize); color: "#b8c7d2"; font.pixelSize: 11 }
+                        Slider { Layout.preferredWidth: 110; from:8; to:48; stepSize:2; value:root.signalSize; onMoved:root.signalSize=value }
                     }
                     Panel {
                         Layout.fillWidth: true; Layout.fillHeight: true; visible: root.panelMode
@@ -217,7 +217,7 @@ ApplicationWindow {
                                         Rectangle { visible:signalImage.status!==Image.Ready; x:0; y:15; height:17; width:2; color:"#758ea1" }
                                         Rectangle { x:-7; y:0; width:16; height:16; radius:(sig.modelData.balise||sig.modelData.marker)?0:8; rotation:sig.modelData.balise?45:0
                                             visible:signalImage.status!==Image.Ready
-                                            color:"#14212c"; border.width:symbols.currentIndex===1?3:2; border.color:sig.modelData.balise?"#c5b8ef":"#74c4e8" }
+                                            color:"#14212c"; border.width:symbols.currentIndex===1?3:2; border.color:"#b9b9b9" }
                                         Label { visible:sig.modelData.marker&&signalImage.status!==Image.Ready; x:-4; y:0; text:"M"; color:"#e6c789"; font.pixelSize:12 }
                                         Label { visible:signalImage.status!==Image.Ready; x:-18; y:-18; text:sig.modelData.aspect; font.pixelSize:9; color:"#b9c8d3" }
                                         MouseArea { x:-root.signalSize/2; y:24-root.signalSize; width:root.signalSize; height:root.signalSize+12; hoverEnabled:true; cursorShape:Qt.PointingHandCursor

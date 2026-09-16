@@ -2,7 +2,7 @@
   #error Stage is required
 #endif
 #ifndef Version
-  #define Version "0.5.0"
+  #define Version "0.5.1"
 #endif
 [Setup]
 AppId={{9A75DC32-7B21-4838-8351-A07F9952B708}

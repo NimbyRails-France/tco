@@ -4,7 +4,7 @@ param(
  [string]$QtRoot='C:/Qt/6.11.2/mingw_64',
  [string]$QtTools='C:/Qt/Tools',
  [string]$FeedUrl='https://github.com/NimbyRails-France/tco/releases/latest/download/tco-latest.json',
- [string]$ReleaseBaseUrl='https://github.com/NimbyRails-France/tco/releases/download/v0.5.0'
+ [string]$ReleaseBaseUrl='https://github.com/NimbyRails-France/tco/releases/download/v0.5.1'
 )
 $ErrorActionPreference='Stop'
 # One packaging implementation for the portable archive and installer.
