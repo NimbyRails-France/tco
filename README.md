@@ -85,3 +85,5 @@ Profils Debug/Release et configurations Run/Debug : [guide CLion](docs/clion.md)
 - La CI refuse les incohérences de versions et les tags sans changelog daté. Les releases en brouillon ne sont pas annoncées. Une correction des notes modifie l'annonce existante.
 
 Woodpecker compile Windows x64 avec MinGW et exécute les tests CTest autonomes sous Wine. Cela ne remplace pas les essais dans le jeu ni la validation native Windows des installateurs et scripts PowerShell.
+
+La compilation du TCO utilise les en-têtes SDK 0.7.1, épinglés au commit du tag publié, comme son packaging. Passer aux en-têtes 0.7.2 nécessite aussi d'adapter les symboles du pont dynamique `sdkclient.cpp` et les fixtures de tests ; la CI ne change pas cette dépendance implicitement.
