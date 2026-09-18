@@ -2,23 +2,15 @@
 
 ## [Unreleased]
 
-- Politique de canaux alpha / bêta / stable contrôlée en CI ; publication directe par release GitHub.
-
-- Les scripts de packaging utilisent la version du projet au lieu de numéros écrits en dur.
-
-- Validation Woodpecker et contrôle de cohérence des versions et du changelog.
-
 ## [0.5.2] - 2026-09-16
 
-Les textures des signaux de mods restent lisibles au dÃ©zoom et les petits groupes de signaux superposÃ©s s'affichent sÃ©parÃ©ment.
+### Améliorations
+- Les signaux restent lisibles lorsque vous dézoomez, avec une taille d’affichage réglable.
+- Jusqu’à six signaux superposés peuvent être distingués : chacun est relié à sa voie et dispose de ses propres informations.
+- Les balises et les signaux situés au même endroit restent visibles ensemble.
+- Les groupes plus importants sont représentés par un compteur pour préserver la lisibilité.
 
-- Suppression des marges transparentes des images et taille rÃ©glable constante Ã  l'Ã©cran.
-- Jusqu'Ã  six symboles superposÃ©s espacÃ©s, chacun reliÃ© Ã  sa voie et avec sa propre infobulle. Une balise et un signal au mÃªme point sont visibles sans devoir zoomer davantage.
-- Placement stable par identifiant ; les textures continuent de suivre l'Ã©tat natif du jeu.
-- Les groupes plus importants restent reprÃ©sentÃ©s par un compteur neutre.
-- SDK 0.7.1 inclus et requis au minimum ; correction du chargement de l'horloge dans le client.
-
-Validation : quatre tests automatisÃ©s, y compris superposition exacte, stabilitÃ© au zoom et changement d'Ã©tat ; contrÃ´le sur une partie rÃ©elle avec sept textures distinctes dÃ©codÃ©es. L'installateur et l'archive portable incluent Qt et le SDK. Le TCO reste en lecture seule.
+Le TCO affiche l’état du jeu sans le modifier.
 
 ## [0.5.1] - 2026-09-16
 
