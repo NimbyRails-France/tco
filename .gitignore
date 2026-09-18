@@ -7,3 +7,6 @@
 *.log
 /install/
 /CMakeUserPresets.json
+
+# Isolated CI dependencies
+.ci/
