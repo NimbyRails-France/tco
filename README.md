@@ -87,3 +87,11 @@ Profils Debug/Release et configurations Run/Debug : [guide CLion](docs/clion.md)
 Woodpecker compile Windows x64 avec MinGW et exécute les tests CTest autonomes sous Wine. Cela ne remplace pas les essais dans le jeu ni la validation native Windows des installateurs et scripts PowerShell.
 
 La compilation du TCO utilise les en-têtes SDK 0.7.1, épinglés au commit du tag publié, comme son packaging. Passer aux en-têtes 0.7.2 nécessite aussi d'adapter les symboles du pont dynamique `sdkclient.cpp` et les fixtures de tests ; la CI ne change pas cette dépendance implicitement.
+
+## Canaux de publication
+
+**Stable** : `vX.Y.Z` (release normale). **Bêta** : `vX.Y.Z-beta.N`. **Alpha** : `vX.Y.Z-alpha.N` (ces deux dernières sont des prereleases GitHub). `N` commence à 1. Le Hub mémorise un canal par projet, stable par défaut, sans basculer vers un autre canal si aucune release n’existe. Un retour vers une version plus ancienne nécessite une installation manuelle.
+
+`VERSION` et le manifeste portent la version complète ; la version CMake garde seulement `X.Y.Z`. Publier le ZIP et son `project.json` dans la **même release**, avec son changelog. Pour le Hub lui-même, publier l’installateur et `hub-latest.json`. Le manifeste donne la taille, le SHA-256, le dossier racine et les règles de compatibilité. Aucun catalogue central ne doit être modifié.
+
+La politique est dans `release-channels.json`. Le contrôle `.woodpecker/check-release.py` refuse les autres canaux. Une release de test n’est jamais marquée comme dernière version stable.

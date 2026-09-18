@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Politique de canaux alpha / bêta / stable contrôlée en CI ; publication directe par release GitHub.
+
 - Les scripts de packaging utilisent la version du projet au lieu de numéros écrits en dur.
 
 - Validation Woodpecker et contrôle de cohérence des versions et du changelog.
