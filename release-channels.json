@@ -1,0 +1,14 @@
+{
+  "channels": [
+    "alpha",
+    "beta",
+    "stable"
+  ],
+  "default": "stable",
+  "source": "github-releases",
+  "branches": {
+    "main": "stable",
+    "alpha": "alpha",
+    "beta": "beta"
+  }
+}

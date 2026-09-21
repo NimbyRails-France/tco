@@ -13,7 +13,9 @@ $ErrorActionPreference='Stop'
 
 $root=$PSScriptRoot
 $tcoBuild=$BuildDirectory
-$version='0.5.2'
+$version=(Get-Content -LiteralPath "$root/VERSION" -Raw).Trim()
+if($version -notmatch '^\d+\.\d+\.\d+(?:-(?:alpha|beta)\.[1-9]\d*)?$'){throw 'Invalid VERSION'}
+if(!$ReleaseBaseUrl){$ReleaseBaseUrl="https://github.com/NimbyRails-France/tco/releases/download/v$version"}
 foreach($url in @($FeedUrl,$ReleaseBaseUrl)) { if($url -and ([uri]$url).Scheme -ne 'https'){throw 'Update URLs must use HTTPS'} }
 if(!(Test-Path -LiteralPath $Iscc)){throw "Install Inno Setup 6 and pass -Iscc. Missing: $Iscc"}
 if(!$SkipBuild){
