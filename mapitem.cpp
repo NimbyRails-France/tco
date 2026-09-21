@@ -8,7 +8,27 @@
 #include <map>
 MapItem::MapItem(QQuickItem* p):QQuickPaintedItem(p){setAntialiasing(true);}
 void MapItem::setSignalSize(double value){if(!std::isfinite(value))return;value=std::clamp(value,8.,48.);if(signalSize_!=value){signalSize_=value;update();emit dataChanged();}}
-QPointF MapItem::point(const MapNode& n)const{return {(n.x-center_.x())*scale_+width()/2,(-n.y-center_.y())*scale_+height()/2};}
+QPointF MapItem::project(const QPointF& world)const{return {(world.x()-center_.x())*scale_+width()/2,(-world.y()-center_.y())*scale_+height()/2};}
+QPointF MapItem::point(const MapNode& n)const{return project({n.x,n.y});}
+std::optional<QPointF> MapItem::trainWorldPosition(const QVariantMap& train) const {
+ if(!train.value("positioned").toBool())return std::nullopt;
+ auto found=index_.find(train.value("track").toString().toULongLong(nullptr,16));
+ bool valid=false;const double fraction=train.value("fraction").toDouble(&valid);
+ if(found==index_.end()||!valid||!std::isfinite(fraction)||fraction<0||fraction>1)return std::nullopt;
+ const auto& node=nodes_[found->second];const QPointF anchor(node.x,node.y);
+ // The SDK exposes track anchors, not exact curve endpoints. Use shared
+ // midpoints on reciprocal links so adjacent tracks meet without a jump.
+ auto boundary=[&](uint64_t link){
+  auto neighbour=index_.find(link);if(neighbour==index_.end())return anchor;
+  const auto& other=nodes_[neighbour->second];
+  if(other.link_a!=node.id&&other.link_b!=node.id)return anchor;
+  return (anchor+QPointF(other.x,other.y))/2.;
+ };
+ // Fraction already uses the native A -> B orientation. Direction must not
+ // invert it a second time for reverse-running trains.
+ return fraction<=.5 ? boundary(node.link_a)+(anchor-boundary(node.link_a))*(fraction*2.)
+                     : anchor+(boundary(node.link_b)-anchor)*((fraction-.5)*2.);
+}
 void MapItem::invalidate(){signalHits_.clear();dirty_=true;update();}
 void MapItem::setData(const QVariantMap& v){
  signalHits_.clear();data_=v;auto bytes=v.value("mapGeometry").toByteArray();
@@ -27,15 +47,22 @@ void MapItem::fit(){if(nodes_.empty()||width()<1||height()<1)return;
  center_={(x0+x1)/2,(y0+y1)/2};scale_=std::max(1e-7,std::min((width()-50)/std::max(1.,x1-x0),(height()-90)/std::max(1.,y1-y0)));fitted_=true;invalidate();}
 void MapItem::moveView(double x,double y){center_-=QPointF(x/scale_,y/scale_);invalidate();}
 void MapItem::zoomAt(double factor,double x,double y){const QPointF cursor(x-width()/2,y-height()/2);const auto world=center_+cursor/scale_;scale_=std::clamp(scale_*factor,1e-7,50.);center_=world-cursor/scale_;invalidate();}
-void MapItem::focusTrain(){const auto id=data_.value("selectedTrackId").toString().toULongLong(nullptr,16);auto i=index_.find(id);if(i==index_.end())return;auto n=nodes_[i->second];center_={n.x,-n.y};scale_=std::max(.05,std::min(width(),height())/3000.);invalidate();}
+void MapItem::focusTrain(){
+ for(const auto& value:data_.value("trains").toList()){
+  const auto train=value.toMap();if(train.value("id")!=data_.value("selectedTrainId"))continue;
+  if(const auto position=trainWorldPosition(train)){
+   center_={position->x(),-position->y()};scale_=std::max(.05,std::min(width(),height())/3000.);invalidate();
+  }
+  return;
+ }
+}
 QVariantList MapItem::trainsAt(double x,double y) const{
  // Hit radius is in screen pixels, independent of the zoom level.
  std::vector<std::pair<double,QVariantMap>> hits;
  for(const auto& value:data_.value("trains").toList()){
   const auto train=value.toMap();if(!train.value("positioned").toBool())continue;
-  auto node=index_.find(train.value("track").toString().toULongLong(nullptr,16));
-  if(node==index_.end())continue;
-  const auto delta=point(nodes_[node->second])-QPointF(x,y);
+  const auto position=trainWorldPosition(train);if(!position)continue;
+  const auto delta=project(*position)-QPointF(x,y);
   const double distance=delta.x()*delta.x()+delta.y()*delta.y();
   if(distance<=100.)hits.emplace_back(distance,train);
  }
@@ -84,7 +111,7 @@ void MapItem::paint(QPainter* p){
  // Small overlaps are separated on screen, each with a leader to its own track.
  // Large clusters retain a neutral count instead of covering the whole map.
  const double symbolSize=signalSize_;
- struct Symbol {QVariantMap data;QPointF anchor;QRectF rect;QImage image;};
+ struct Symbol {QVariantMap data;QPointF anchor;QRectF rect;QImage image;QPointF tangent;};
  std::vector<Symbol> symbols;
  for(const auto& value:data_.value("mapSignals").toList()){
   const auto m=value.toMap();auto it=index_.find(m.value("track").toString().toULongLong(nullptr,16));
@@ -103,7 +130,17 @@ void MapItem::paint(QPainter* p){
   const QSizeF size=image.isNull()?QSizeF(10,12):image.size().scaled(std::max(4,int(symbolSize)),std::max(4,int(symbolSize)),Qt::KeepAspectRatio);
   const bool below=m.value("balise").toBool()||m.value("direction").toInt()<0;
   const QPointF offset(-size.width()/2,below?3:-size.height()-3);
-  symbols.push_back({m,anchor,QRectF(anchor+offset,size),image});
+  const auto& node=nodes_[it->second];
+  const auto a=index_.find(node.link_a),b=index_.find(node.link_b);
+  QPointF tangent;
+  if(a!=index_.end()&&b!=index_.end())tangent=point(nodes_[b->second])-point(nodes_[a->second]);
+  else if(b!=index_.end())tangent=point(nodes_[b->second])-anchor;
+  else if(a!=index_.end())tangent=anchor-point(nodes_[a->second]);
+  const double length=std::hypot(tangent.x(),tangent.y());
+  tangent=length>1e-12?tangent/length:QPointF(1,0);
+  if(m.contains("trackAxisAvailable"))tangent=m.value("trackAxisAvailable").toBool()
+      ?QPointF(m.value("trackAxisX").toDouble(),-m.value("trackAxisY").toDouble()):QPointF(1,0);
+  symbols.push_back({m,anchor,QRectF(anchor+offset,size),image,tangent});
  }
  std::vector<size_t> parent(symbols.size());for(size_t i=0;i<parent.size();++i)parent[i]=i;
  auto root=[&](size_t i){while(parent[i]!=i){parent[i]=parent[parent[i]];i=parent[i];}return i;};
@@ -138,16 +175,32 @@ void MapItem::paint(QPainter* p){
    std::sort(ordered.begin(),ordered.end(),[&](size_t a,size_t b){
     return symbols[a].data.value("id").toString()<symbols[b].data.value("id").toString();
    });
-   QPointF center;double cellWidth=0,cellHeight=0;
-   for(auto i:ordered){center+=symbols[i].anchor;cellWidth=std::max(cellWidth,symbols[i].rect.width());cellHeight=std::max(cellHeight,symbols[i].rect.height());}
+   // Native fractions increase from link A toward link B. Display offsets
+   // follow that axis; IDs only break ties, never define physical order.
+   const auto axis=symbols[ordered.front()].tangent;
+   const QPointF normal(-axis.y(),axis.x());
+   const auto track=symbols[ordered.front()].data.value("track").toString();
+   const bool sameTrack=std::all_of(ordered.begin(),ordered.end(),[&](size_t i){return symbols[i].data.value("track").toString()==track;});
+   std::stable_sort(ordered.begin(),ordered.end(),[&](size_t a,size_t b){
+    const auto order=[](const QVariantMap& m){return m.value("signalOrder",m.value("fraction")).toDouble();};
+    if(sameTrack)return order(symbols[a].data)<order(symbols[b].data);
+    const double pa=QPointF::dotProduct(symbols[a].anchor,axis),pb=QPointF::dotProduct(symbols[b].anchor,axis);
+    if(pa!=pb)return pa<pb;
+    const auto ta=symbols[a].data.value("track").toString(),tb=symbols[b].data.value("track").toString();
+    if(ta!=tb)return ta<tb;
+    const double sign=QPointF::dotProduct(symbols[a].tangent,axis)<0?-1.:1.;
+    return sign*order(symbols[a].data)<sign*order(symbols[b].data);
+   });
+   QPointF center;double along=0,across=0;
+   for(auto i:ordered){
+    center+=symbols[i].anchor;const auto size=symbols[i].rect.size();
+    along=std::max(along,std::abs(axis.x())*size.width()+std::abs(axis.y())*size.height());
+    across=std::max(across,std::abs(normal.x())*size.width()+std::abs(normal.y())*size.height());
+   }
    center/=double(ordered.size());
-   cellWidth+=18;cellHeight+=12;
-   const int columns=std::min(3,int(ordered.size()));
-   const int rows=(int(ordered.size())+columns-1)/columns;
    for(int i=0;i<int(ordered.size());++i){
     const auto& item=symbols[ordered[i]];
-    const QPointF position(center.x()+(i%columns-(columns-1)/2.)*cellWidth,
-                           center.y()-12-(rows-i/columns-.5)*cellHeight);
+    const QPointF position=center+axis*((i-(ordered.size()-1)/2.)*(along+18))-normal*(across/2+12);
     drawSymbol(item,QRectF(position-QPointF(item.rect.width()/2,item.rect.height()/2),item.rect.size()));
    }
    continue;
@@ -167,8 +220,8 @@ void MapItem::paint(QPainter* p){
   drawSymbol(symbol,symbol.rect);
  }
  p->setFont(QFont("Segoe UI",9));
- for(auto v:data_.value("trains").toList()){auto m=v.toMap();if(!m["positioned"].toBool())continue;auto i=index_.find(m["track"].toString().toULongLong(nullptr,16));if(i==index_.end())continue;
-  auto a=point(nodes_[i->second]);if(!visible(a))continue;const bool selected=m["id"]==data_.value("selectedTrainId");
+ for(auto v:data_.value("trains").toList()){auto m=v.toMap();const auto position=trainWorldPosition(m);if(!position)continue;
+  auto a=project(*position);if(!visible(a))continue;const bool selected=m["id"]==data_.value("selectedTrainId");
   p->setPen(Qt::NoPen);p->setBrush(QColor(selected?"#ffdf75":"#86d8c9"));p->drawEllipse(a,selected?5:2.5,selected?5:2.5);
   if(scale_>.025||selected){p->setPen(QColor("#f1eed6"));p->drawText(a+QPointF(7,14),m["name"].toString()+" · "+QString::number(m["fraction"].toDouble()*100,'f',1)+"%");}
  }

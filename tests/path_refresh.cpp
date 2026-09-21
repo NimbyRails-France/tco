@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <thread>
 #include <chrono>
 namespace {
@@ -51,6 +52,7 @@ uint32_t NimbyInternal_CopySignalTextures(NimbySnapshot s,NimbySignalTexture* ou
  return output(std::vector<NimbySignalTexture>{texture},out,cap,n);
 }
 uint32_t NimbyInternal_CopyTrackNodes(NimbySnapshot,NimbyTrackNode* out,uint32_t cap,uint32_t* n) noexcept{return output(std::vector<NimbyTrackNode>{{track,0,0,0,0}},out,cap,n);}
+uint32_t NimbyInternal_CopyTrackJunctions(NimbySnapshot,NimbyTrackJunction* out,uint32_t cap,uint32_t* n) noexcept{return output(std::vector<NimbyTrackJunction>{},out,cap,n);}
 uint32_t NimbyInternal_CopyTrainPathTracks(NimbySnapshot s,uint64_t,uint64_t* out,uint32_t cap,uint32_t* n) noexcept{
  *n=0;if(s==3||s==5)return NIMBY_DATA_UNAVAILABLE;std::vector<uint64_t> path;if(s!=4){path.push_back(track);if(s==1)path.push_back(track+0x10000);}return output(path,out,cap,n);
 }
@@ -177,5 +179,43 @@ int main(int argc,char** argv){
  zoomData["mapSignals"]=QVariantList{first,second};zoomMap.setData(zoomData);
  const auto coincident=renderZoom();
  require(countColor(coincident,QColor("#ff00ff"))>0&&countColor(coincident,QColor("#00ffff"))>0,"coincident balise and reverse-facing signal both remain visible");
+ // IDs oppose the physical order, as in the reported diagonal track.
+ MapNode diagonal[]={{track,track+1,track+2,0,0},{track+1,0,0,-100,150},{track+2,0,0,100,-150}};
+ first["id"]="Z";first["fraction"]=0.00045;
+ second["id"]="A";second["fraction"]=0.00773;
+ zoomData["mapGeometry"]=QByteArray(reinterpret_cast<char*>(diagonal),sizeof diagonal);
+ zoomData["mapSignals"]=QVariantList{second,first};zoomMap.setData(zoomData);zoomMap.fit();
+ auto centroid=[&](const QImage& img,const QColor& color){QPointF sum;int count=0;for(int y=0;y<img.height();++y)for(int x=0;x<img.width();++x)if(img.pixelColor(x,y)==color){sum+=QPointF(x,y);++count;}require(count>0,"ordered symbol remains visible");return sum/count;};
+ const auto orderedImage=renderZoom();
+ const auto before=centroid(orderedImage,QColor("#ff00ff")),after=centroid(orderedImage,QColor("#00ffff"));
+ require(before.x()<after.x()&&before.y()<after.y(),"native fractions preserve signal-before-balise order along diagonal track despite reversed IDs");
+ zoomData["mapSignals"]=QVariantList{first,second};zoomMap.setData(zoomData);
+ require(renderZoom()==orderedImage,"physical order remains stable after snapshot reorder");
+ first["signalOrder"]=0;second["signalOrder"]=1;
+ first["fraction"]=.9;second["fraction"]=.1;
+ zoomData["mapSignals"]=QVariantList{first,second};zoomMap.setData(zoomData);
+ require(renderZoom()==orderedImage,"TCO uses SDK order instead of reordering native records itself");
+ // Position, painted marker, hit testing and focus share the same fraction.
+ MapItem moving;moving.setWidth(400);moving.setHeight(300);
+ MapNode route[]={{track,track+1,track+2,0,0},{track+1,0,track,-1000,0},{track+2,track,0,1000,0}};
+ QVariantMap movingTrain{{"id","moving"},{"track",QString::number(track,16)},{"name","Moving"},{"positioned",true},{"fraction",.25},{"direction",1}};
+ QVariantMap movingData{{"mapGeometry",QByteArray(reinterpret_cast<char*>(route),sizeof route)},{"selectedTrainId","moving"},{"trains",QVariantList{movingTrain}}};
+ moving.setData(movingData);
+ auto trainPixel=[&](int x,int y){QImage img(400,300,QImage::Format_ARGB32_Premultiplied);QPainter painter(&img);moving.paint(&painter);painter.end();return img.pixelColor(x,y);};
+ require(moving.trainsAt(156.25,150).size()==1&&trainPixel(156,150)==QColor("#ffdf75"),"25 percent places marker and click target on the first half of the track");
+ movingTrain["fraction"]=.75;movingData["trains"]=QVariantList{movingTrain};moving.setData(movingData);
+ require(moving.trainsAt(243.75,150).size()==1&&moving.trainsAt(156.25,150).isEmpty()&&trainPixel(244,150)==QColor("#ffdf75"),"new fraction moves marker and click target in the same snapshot");
+ movingTrain["direction"]=-1;movingData["trains"]=QVariantList{movingTrain};moving.setData(movingData);
+ require(moving.trainsAt(243.75,150).size()==1,"reverse direction does not invert the native fraction");
+ moving.focusTrain();require(moving.trainsAt(200,150).size()==1&&trainPixel(200,150)==QColor("#ffdf75"),"focus centers interpolated train instead of track anchor");
+ moving.fit();movingTrain["fraction"]=1.;movingData["trains"]=QVariantList{movingTrain};moving.setData(movingData);
+ require(moving.trainsAt(287.5,150).size()==1,"track end reaches the shared boundary");
+ movingTrain["track"]=QString::number(track+2,16);movingTrain["fraction"]=0.;movingData["trains"]=QVariantList{movingTrain};moving.setData(movingData);
+ require(moving.trainsAt(287.5,150).size()==1,"next track begins at the same position without a jump");
+ movingTrain["fraction"]=std::numeric_limits<double>::quiet_NaN();movingData["trains"]=QVariantList{movingTrain};moving.setData(movingData);
+ require(moving.trainsAt(287.5,150).isEmpty(),"invalid fractions cannot create phantom train targets");
+ route[0].link_a=0;route[0].link_b=0;movingData["mapGeometry"]=QByteArray(reinterpret_cast<char*>(route),sizeof route);
+ movingTrain["track"]=QString::number(track,16);movingTrain["fraction"]=.75;movingData["trains"]=QVariantList{movingTrain};moving.setData(movingData);
+ require(moving.trainsAt(200,150).size()==1,"missing geometry keeps train at the known anchor");
  return 0;
 }

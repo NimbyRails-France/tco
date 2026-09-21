@@ -131,7 +131,7 @@ ApplicationWindow {
                                 anchors.fill: parent; anchors.margins: 12; spacing: 6
                                 Label { width: parent.width; elide: Text.ElideRight; text: trainCard.modelData.name || trainCard.modelData.id; color: "#e7edf3"; font.bold: true; font.pixelSize: 14 }
                                 Label { text: trainCard.modelData.speedAvailable && !trainCard.modelData.speedDefaulted ? trainCard.modelData.speed.toFixed(1)+" km/h" : "Vitesse non mesurée"; color: "#efbe72"; font.pixelSize: 16 }
-                                Label { text: trainCard.modelData.positioned ? "Voie …"+trainCard.modelData.track.slice(-8) : "Non localisé dans les états validés"; font.pixelSize: 10; color: "#8c9fac" }
+                                Label { text: trainCard.modelData.positioned ? "Voie …"+trainCard.modelData.track.slice(-8)+" · "+(trainCard.modelData.fraction*100).toFixed(1)+" %" : "Non localisé dans les états validés"; font.pixelSize: 10; color: "#8c9fac" }
                             }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { backend.selectTrain(trainCard.modelData.id); root.selectedTrack = trainCard.modelData.track; root.stationFilter=""; station.currentIndex=0; if(trainCard.modelData.positioned) scope.currentIndex=3 } }
                         }

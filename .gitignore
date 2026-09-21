@@ -1,4 +1,6 @@
 **/.idea/
+**/.gradle/
+**/.kotlin/
 **/cmake-build-*/
 /build/
 /dist/

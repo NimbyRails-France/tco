@@ -1,4 +1,32 @@
-# Nimby TCO 0.5.2
+# Nimby TCO — migration Kotlin 0.6.0
+
+La version de développement utilise Kotlin et Compose Multiplatform avec un
+client Kotlin du SDK. Ouvrir ce dossier comme projet Gradle dans IntelliJ.
+Java 21 est requis ; le dépôt SDK doit être voisin (`../sdk/kotlin-client`),
+ou indiqué par `-PnrfSdkClientDir=/chemin/vers/sdk/kotlin-client`.
+
+```sh
+./gradlew desktopTest run
+./gradlew packageDistributionForCurrentOS
+```
+
+Sous Windows, utiliser `gradlew.bat`. Les paquets sont construits sur leur
+système cible : MSI/EXE sous Windows, DEB/RPM sous Linux, DMG sous macOS.
+Les sorties sont dans `build/kotlin-<système>/compose/binaries/main/`.
+Les DEB ont été installés et lancés dans Ubuntu WSL ; les DMG n'ont pas été testés.
+
+La carte, les trains, les filtres, les occupations, les réservations et les
+textures PNG/SVG utilisent le client Kotlin. La connexion attend une bibliothèque
+native du SDK correspondant au système. **Le backend SDK Linux complet reste en
+portage** : le test Linux du client et du paquet utilise une bibliothèque de test,
+il ne prouve pas encore la lecture d'une partie par le TCO.
+
+La parité avec le TCO publié reste à terminer, notamment les panneaux détaillés,
+les signaux superposés, les infobulles et l'intégration des mises à jour. Les
+sources C++/Qt sont conservées pendant cette transition. La description suivante
+concerne la version publiée 0.5.2, pas les garanties du prototype Kotlin.
+
+## Version publiée 0.5.2 (C++/Qt)
 
 Tableau de contrôle optique expérimental pour NIMBY Rails, avec textures natives
 des signaux, clignotement observé, repères et taille réglable.
@@ -38,14 +66,21 @@ plus le signal situé sur la même voie. Les données périmées sont effacées.
 La taille réglable des symboles reste constante à l’écran, même au dézoom.
 Les marges transparentes des images sont retirées pour rendre les mods lisibles.
 Jusqu’à six signaux superposés sont espacés à l’écran, chacun relié à sa voie
-par un trait et avec sa propre infobulle. Les groupes plus nombreux restent
+par un trait et avec sa propre infobulle. Leur espacement suit l’axe de la voie
+et leur ordre provient de `Snapshot::getSignalTopology()` du SDK (index des
+fractions natives et axe des nœuds voisins), plutôt que des identifiants.
+Les groupes plus nombreux restent
 sous un compteur gris, sans attribuer au groupe la couleur d’un signal.
 Un « ? » indique un état ou une
 image indisponible. Survoler un signal ou un groupe affiche les identifiants
 et les états natifs disponibles. Le zoom ne choisit jamais une autre texture
 pour un même signal ; les changements réels du jeu continuent à être actualisés.
 
-Les positions sont repérées à la voie, sans interpolation exacte des courbes.
+Le marqueur du train et son pourcentage utilisent la même capture. Sa position
+est interpolée sur les segments reliant les repères de voie, avec des limites
+communes entre voisins réciproques. Le clic et le centrage suivent cette position.
+Cette approximation ne reproduit pas les courbes exactes ; si un lien manque,
+le marqueur reste au repère sur la portion dont la géométrie est inconnue.
 Les réservations sont des portions natives et ne représentent pas nécessairement
 les réservations virtuelles des scripts. Les noms d'aspects ferroviaires ne sont
 pas déduits des couleurs. Une donnée indisponible ne signifie pas voie libre.
@@ -60,6 +95,12 @@ les filtres. Ils concernent la liste des trains ; la carte conserve le réseau
 complet et ses occupations. La sélection du train reste active pendant la recherche.
 
 ## Construire
+
+La branche de développement utilise l'API `getSignalTopology`, ajoutée au SDK
+après sa release 0.7.1. Installer les sources SDK actuelles avant de compiler :
+`cmake --install ../sdk/build/Release --prefix ../sdk/install/0.7.1/Release`.
+Les profils CLion et scripts utilisent ce kit installé par défaut ; le ZIP
+publié 0.7.1 ne contient pas encore cette nouvelle API.
 
 Qt 6.11.2 MinGW x64, CMake et Ninja, puis :
 

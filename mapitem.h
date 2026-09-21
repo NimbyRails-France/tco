@@ -6,6 +6,7 @@
 #include "mapgeometry.h"
 #include <unordered_map>
 #include <vector>
+#include <optional>
 class MapItem : public QQuickPaintedItem {
  Q_OBJECT
  Q_PROPERTY(QVariantMap snapshotData READ data WRITE setData NOTIFY dataChanged)
@@ -41,5 +42,7 @@ private:
  std::vector<std::pair<QRectF,QString>> signalHits_;
  QString signalDescription(const QVariantMap& signal) const;
  QPointF point(const MapNode& n)const;
+ std::optional<QPointF> trainWorldPosition(const QVariantMap& train) const;
+ QPointF project(const QPointF& world) const;
  void invalidate();
 };

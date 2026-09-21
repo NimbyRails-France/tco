@@ -1,5 +1,5 @@
 param(
- [string]$SdkRoot="$PSScriptRoot/../sdk/dist/NimbyRailsFranceSDK-0.7.1",
+ [string]$SdkRoot="$PSScriptRoot/../sdk/install/0.7.1/Release",
  [string]$Iscc="$env:LOCALAPPDATA/Programs/InnoSetup/ISCC.exe",
  [string]$FeedUrl='',
  [string]$ReleaseBaseUrl='',

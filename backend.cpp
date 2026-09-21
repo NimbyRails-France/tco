@@ -127,12 +127,20 @@ QVariantMap capture(nimby::Client& client,uint32_t pid,const ViewFilter& view) {
             pathSize=static_cast<uint32_t>(path->size());pathAvailable=true;
         }
     }
+    const auto signalTopology=snap->getSignalTopology();
+    std::unordered_map<nimby::Id,int> signalOrder;
+    for(const auto& s:signalRecords)if(!signalOrder.contains(s.getId())){
+        int rank=0;for(const auto& ordered:signalTopology.getSignalsForTrack(s.getTrackId()))signalOrder.emplace(ordered.getId(),rank++);
+    }
     for(const auto& s:signalRecords){
         const auto state=snap->getSignalStateById(s.getId());
         const auto selector=state?state->getTextureSelector():std::nullopt;
         const bool available=selector.has_value();
         const auto specific=state?state->getSpecificState():std::nullopt;
+        const auto axis=signalTopology.getTrackAxis(s.getTrackId());
         mapSignals.push_back(QVariantMap{{"id",id(s.getId())},{"kind",kind(s.getKind())},
+            {"signalOrder",signalOrder.at(s.getId())},{"trackAxisAvailable",axis.has_value()},
+            {"trackAxisX",axis?axis->x:0},{"trackAxisY",axis?axis->y:0},
             {"direction",s.getDirection()},{"fraction",s.getFraction()},
             {"specificState",specific?QString::fromStdString(specific->system+":"+specific->state):QString()},
             {"track",id(s.getTrackId())},{"balise",s.getKind()==NIMBY_SIGNAL_BALISE},{"marker",s.getKind()==NIMBY_SIGNAL_MARKER},

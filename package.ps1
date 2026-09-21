@@ -1,5 +1,5 @@
 param(
- [string]$SdkRoot="$PSScriptRoot/../sdk/dist/NimbyRailsFranceSDK-0.7.1",
+ [string]$SdkRoot="$PSScriptRoot/../sdk/install/0.7.1/Release",
  [string]$Iscc="$env:LOCALAPPDATA/Programs/InnoSetup/ISCC.exe",
  [string]$QtRoot='C:/Qt/6.11.2/mingw_64',
  [string]$QtTools='C:/Qt/Tools',

@@ -14,6 +14,7 @@ SDK_FUNCTION(NimbyInternal_CaptureSnapshot);SDK_FUNCTION(NimbyInternal_ReleaseSn
 SDK_FUNCTION(NimbyInternal_CopyTrains);SDK_FUNCTION(NimbyInternal_CopyTracks);SDK_FUNCTION(NimbyInternal_CopyStations);
 SDK_FUNCTION(NimbyInternal_CopySignals);SDK_FUNCTION(NimbyInternal_CopySignalStates);SDK_FUNCTION(NimbyInternal_CopySignalTextures);
 SDK_FUNCTION(NimbyInternal_CopyTrackNodes);SDK_FUNCTION(NimbyInternal_CopyTrainPathTracks);
+SDK_FUNCTION(NimbyInternal_CopyTrackJunctions);
 SDK_FUNCTION(NimbyInternal_CopyTrackReservations);SDK_FUNCTION(NimbyInternal_CopyTrackOccupations);SDK_FUNCTION(NimbyInternal_StatusString);
 #undef SDK_FUNCTION
 }
@@ -32,6 +33,7 @@ bool initializeSdkClient(QString& error){
  LOAD(NimbyInternal_OpenProcess);LOAD(NimbyInternal_CloseSession);LOAD(NimbyInternal_CaptureSnapshot);LOAD(NimbyInternal_ReleaseSnapshot);
  LOAD(NimbyInternal_CopyTrains);LOAD(NimbyInternal_CopyTracks);LOAD(NimbyInternal_CopyStations);LOAD(NimbyInternal_CopySignals);
  LOAD(NimbyInternal_CopySignalStates);LOAD(NimbyInternal_CopySignalTextures);LOAD(NimbyInternal_CopyTrackNodes);LOAD(NimbyInternal_CopyTrainPathTracks);
+ LOAD(NimbyInternal_CopyTrackJunctions);
  LOAD(NimbyInternal_CopyTrackReservations);LOAD(NimbyInternal_CopyTrackOccupations);LOAD(NimbyInternal_StatusString);
 #undef LOAD
  return true;
@@ -51,6 +53,7 @@ uint32_t NimbyInternal_ReleaseSnapshot(NimbySnapshot s) noexcept{return pNimbyIn
 COPY(NimbyInternal_CopyTrains,NimbyTrain) COPY(NimbyInternal_CopyTracks,NimbyTrack) COPY(NimbyInternal_CopyStations,NimbyStation)
 COPY(NimbyInternal_CopySignals,NimbySignal) COPY(NimbyInternal_CopySignalStates,NimbySignalState) COPY(NimbyInternal_CopySignalTextures,NimbySignalTexture)
 COPY(NimbyInternal_CopyTrackNodes,NimbyTrackNode) COPY(NimbyInternal_CopyTrackReservations,NimbyTrackUsage) COPY(NimbyInternal_CopyTrackOccupations,NimbyTrackUsage)
+COPY(NimbyInternal_CopyTrackJunctions,NimbyTrackJunction)
 COPY(NimbyInternal_CopyTrainServices,NimbyTrainService) COPY(NimbyInternal_CopyTrainDetails,NimbyTrainDetails) COPY(NimbyInternal_CopyPlatforms,NimbyPlatform)
 #undef COPY
 uint32_t NimbyInternal_CopyTrainPathTracks(NimbySnapshot s,uint64_t t,uint64_t* o,uint32_t c,uint32_t* n) noexcept{return pNimbyInternal_CopyTrainPathTracks(s,t,o,c,n);}
