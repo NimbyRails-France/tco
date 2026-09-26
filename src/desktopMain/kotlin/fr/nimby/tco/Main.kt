@@ -33,7 +33,9 @@ fun main(args: Array<String>) {
         org.jetbrains.skia.Surface.makeRasterN32Premul(2, 2).use { surface ->
             check(surface.width == 2)
         }
-        check(com.sun.jna.Native.POINTER_SIZE == 8)
+        // JNA is an implementation dependency of the SDK client. Resolve it
+        // from the packaged runtime without exposing it as TCO's public API.
+        check(Class.forName("com.sun.jna.Native").getField("POINTER_SIZE").getInt(null) == 8)
         println("PASS: packaged Windows JVM, application classes and native dependencies")
         return
     }
