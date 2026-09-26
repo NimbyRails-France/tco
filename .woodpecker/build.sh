@@ -1,5 +1,7 @@
 #!/bin/sh
 set -eu
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
 python3 .woodpecker/check-release.py
 # Pin shared tooling and the Kotlin client to an exact, reviewed SDK commit.
 git clone https://github.com/NimbyRails-France/sdk.git .ci/sdk
