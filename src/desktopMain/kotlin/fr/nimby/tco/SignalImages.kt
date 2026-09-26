@@ -56,5 +56,5 @@ class SignalImages {
             cachedBytes -= bytes(oldest.next().value); oldest.remove()
         }
         result
-    }.getOrNull()
+    }.onFailure { fr.nimby.sdk.DiagnosticLog.forComponent("tco").write("Cannot load signal image: $filename", it) }.getOrNull()
 }

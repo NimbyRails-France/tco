@@ -37,3 +37,19 @@ historiques, pas de nouvelles dépendances Qt.
 
 Aucune release n'est demandée par les commits de reprise. Les canaux et les
 versions restent décrits dans `release-channels.json` et `CHANGELOG.md`.
+
+
+## Logs de production
+
+Le Hub propose **Téléchargements → Exporter les logs NRF** : un ZIP local
+regroupe les journaux du Hub, du SDK/chargeur, des mods, du TCO et du banc,
+ainsi qu'un résumé des versions. Aucun envoi automatique, aucune sauvegarde de
+jeu ni fichier de réglages n'est inclus. Les logs peuvent contenir des chemins
+personnels et des identifiants d'objets.
+
+Les composants Windows écrivent sous `%LOCALAPPDATA%/NimbyRailsFrance/logs`,
+chacun dans son dossier ; le Hub utilise `%LOCALAPPDATA%/NimbyRailsFrance/logs/hub`.
+Rotation et regroupement des erreurs répétées limitent le volume. Le TCO et le
+banc disposent aussi d'un bouton pour ouvrir leurs journaux.
+Voir [le contrat de diagnostic](../sdk/docs/production-diagnostics.md) pour les
+emplacements, la rétention, les tests et les limites en cas de crash natif.

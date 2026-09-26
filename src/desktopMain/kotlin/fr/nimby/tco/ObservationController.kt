@@ -10,12 +10,14 @@ class ObservationController(
     private val io: CoroutineDispatcher = Dispatchers.IO,
     private val openClient: (Path, Int) -> ObservationClient = NimbyClient::open,
 ) {
+    private val log = DiagnosticLog.forComponent("tco")
     var observation by mutableStateOf<Observation?>(null); private set
     var status by mutableStateOf("Choisir le SDK puis connecter le jeu"); private set
     var selectedTrain by mutableStateOf<Long?>(null)
     private var generation = 0L
     private var reader: Job? = null
     fun connect(library: Path, processId: Int?) {
+        log.write("Connect SDK=$library gamePid=${processId ?: "auto"}")
         disconnect()
         val ticket = generation
         status = "Recherche du jeu…"
@@ -30,12 +32,21 @@ class ObservationController(
                 // discard a live native session before finally can close it.
                 withContext(io) { client = openClient(library, pid) }
                 val connection = checkNotNull(client)
+                log.write("SDK connected gamePid=$pid")
+                var available = false
+                var successes = 0L
+                var unavailableCount = 0L
+                var nextSummary = System.nanoTime()
                     while (isActive && ticket == generation) {
                         val train = selectedTrain
+                        val started = System.nanoTime()
                         val next = try {
                             withContext(io) { connection.capture(train) }
                         } catch (unavailable: SdkException) {
                             if (unavailable.status != 8) throw unavailable
+                            unavailableCount++
+                            available = false
+                            log.write("Waiting for a loaded game/stable observation", level = "WARN")
                             // Menus, loading and changing saves have no stable
                             // observation. Keep the session so loading a game
                             // does not require reconnecting the TCO manually.
@@ -47,6 +58,13 @@ class ObservationController(
                             delay(500)
                             continue
                         }
+                        successes++
+                        val now = System.nanoTime()
+                        if (!available || now >= nextSummary) {
+                            log.write("Observation ${if (available) "heartbeat" else "available/recovered"}: gamePid=$pid gameSHA256=${next.gameHash} trains=${next.trains.size} tracks=${next.tracks.size} signals=${next.signals.size} selectedTrain=$train clock=${next.clock} successes=$successes unavailable=$unavailableCount captureMs=${(now-started)/1_000_000} ageMs=${System.currentTimeMillis()-next.capturedAtMillis}")
+                            nextSummary = now + 30_000_000_000L
+                        }
+                        available = true
                         if (ticket == generation && train == selectedTrain) {
                             observation = next
                             status = "Connecté au jeu • PID $pid"
@@ -62,12 +80,12 @@ class ObservationController(
                         delay(250)
                     }
             } catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { if (ticket == generation) { observation = null; status = failure.message ?: "Observation interrompue" } }
+            catch (failure: Exception) { log.write("Observation interrupted", failure); if (ticket == generation) { observation = null; status = failure.message ?: "Observation interrompue" } }
             finally {
                 expiry?.cancel()
-                withContext(NonCancellable + io) { client?.close() }
+                withContext(NonCancellable + io) { try { client?.close() } catch (failure: Exception) { log.write("SDK session close failed", failure) } }
             }
         }
     }
-    fun disconnect() { generation++; reader?.cancel(); reader = null; observation = null; status = "Déconnecté" }
+    fun disconnect() { log.write("Disconnect"); generation++; reader?.cancel(); reader = null; observation = null; status = "Déconnecté" }
 }

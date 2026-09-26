@@ -27,6 +27,17 @@ import kotlinx.coroutines.withContext
 import kotlin.math.*
 
 fun main(args: Array<String>) {
+    if (args.firstOrNull() == "--package-smoke-test") {
+        check(System.getProperty("os.name").startsWith("Windows"))
+        // Load the actual Windows Skiko DLL without starting the UI or the game.
+        org.jetbrains.skia.Surface.makeRasterN32Premul(2, 2).use { surface ->
+            check(surface.width == 2)
+        }
+        check(com.sun.jna.Native.POINTER_SIZE == 8)
+        println("PASS: packaged Windows JVM, application classes and native dependencies")
+        return
+    }
+    DiagnosticLog.forComponent("tco").startApplication("0.6.0-alpha.1")
     if (args.firstOrNull() == "--check-sdk") {
         val path = Path.of(args.getOrNull(1) ?: error("Chemin SDK requis"))
         val pid = args.getOrNull(2)?.toIntOrNull() ?: error("PID requis")
@@ -46,7 +57,7 @@ fun main(args: Array<String>) {
 }
 
 @Composable private fun TcoScreen() {
-    val scope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope { kotlinx.coroutines.CoroutineExceptionHandler { _, error -> DiagnosticLog.forComponent("tco").write("Background task failed", error) } }
     val controller = remember { ObservationController(scope) }
     DisposableEffect(controller) { onDispose { controller.disconnect() } }
     val preferences = remember { java.util.prefs.Preferences.userRoot().node("fr/nimbyrails/tco") }
@@ -74,7 +85,14 @@ fun main(args: Array<String>) {
             Button(onClick = { preferences.put("sdk", sdk); controller.connect(Path.of(sdk), pid.toIntOrNull()) }, enabled = sdk.isNotBlank() && (pid.isBlank() || pid.toIntOrNull()?.let { it > 0 } == true)) { Text("Connecter") }
             OutlinedButton(onClick = controller::disconnect) { Text("Déconnecter") }
         }
-        Text(controller.status)
+        Row {
+            Text(controller.status, Modifier.weight(1f))
+            TextButton(onClick = { runCatching {
+                val log = DiagnosticLog.forComponent("tco")
+                java.nio.file.Files.createDirectories(log.directory)
+                java.awt.Desktop.getDesktop().open(log.directory.toFile())
+            }.onFailure { DiagnosticLog.forComponent("tco").write("Cannot open log folder", it) } }) { Text("Journaux") }
+        }
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.width(300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(filter.query, { filter = filter.copy(query = it) }, label = { Text("Train, ligne ou identifiant") }, singleLine = true)

@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.6.0-alpha.1] - 2026-09-27
+
+### Windows alpha
+- TCO Kotlin/Compose utilisant le client Kotlin du SDK 0.8.
+- Connexion explicite, observations périmées invalidées, reprise après chargement de partie.
+- Journaux persistants : versions, connexion, erreurs, volumes observés et bilans périodiques.
+- Nécessite le SDK 0.8.0-alpha.1 ou une version compatible de la série 0.8.
+- Tests logiciels validés ; recette en jeu à effectuer. Aucun paquet Linux.
+
 ## [0.5.2] - 2026-09-16
 
 ### Améliorations
