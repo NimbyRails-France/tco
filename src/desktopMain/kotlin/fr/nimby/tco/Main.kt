@@ -1,5 +1,8 @@
 package fr.nimby.tco
 
+import fr.nimby.tco.i18n.tr
+import fr.nimby.tco.i18n.I18n
+
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -27,6 +30,7 @@ import kotlinx.coroutines.withContext
 import kotlin.math.*
 
 fun main(args: Array<String>) {
+    I18n.configure(java.util.prefs.Preferences.userRoot().node("fr/nimbyrails/tco").get("language", "auto"), java.util.Locale.getDefault().toLanguageTag())
     if (args.firstOrNull() == "--package-smoke-test") {
         check(System.getProperty("os.name").startsWith("Windows"))
         // Load the actual Windows Skiko DLL without starting the UI or the game.
@@ -39,13 +43,13 @@ fun main(args: Array<String>) {
         println("PASS: packaged Windows JVM, application classes and native dependencies")
         return
     }
-    DiagnosticLog.forComponent("tco").startApplication("0.6.0-alpha.1")
+    DiagnosticLog.forComponent("tco").startApplication("0.6.0-alpha.2")
     if (args.firstOrNull() == "--check-sdk") {
-        val path = Path.of(args.getOrNull(1) ?: error("Chemin SDK requis"))
-        val pid = args.getOrNull(2)?.toIntOrNull() ?: error("PID requis")
+        val path = Path.of(args.getOrNull(1) ?: error(tr("Chemin SDK requis")))
+        val pid = args.getOrNull(2)?.toIntOrNull() ?: error(tr("PID requis"))
         NimbyClient.open(path, pid).use { client ->
             val snapshot = client.capture()
-            println("PID=${snapshot.processId} trains=${snapshot.trains.size} voies=${snapshot.tracks.size} signaux=${snapshot.signals.size}")
+            println(tr("PID={0} trains={1} voies={2} signaux={3}", snapshot.processId, snapshot.trains.size, snapshot.tracks.size, snapshot.signals.size))
         }
         return
     }
@@ -75,17 +79,35 @@ fun main(args: Array<String>) {
     val services = remember(observation) { observation?.services.orEmpty().associateBy(Service::trainId) }
     val visible = remember(observation, filter) { observation?.trains.orEmpty().filter { filter.matches(it.id, it.name, services[it.id]?.lineName, it.speedKmh, it.position != null) } }
     Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Tableau de contrôle optique", style = MaterialTheme.typography.headlineSmall)
-        if (System.getenv("NRF_MANAGED_BY_HUB") == "1") Text("Installation et mises à jour gérées par NRF Hub", style = MaterialTheme.typography.bodySmall)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(tr("Tableau de contrôle optique"), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            var languageMenu by remember { mutableStateOf(false) }
+            Box {
+                TextButton({ languageMenu = true }) { Text(tr("Langue") + " · " + I18n.languageName(I18n.preference)) }
+                DropdownMenu(languageMenu, { languageMenu = false }) {
+                    listOf("auto", "fr", "en").forEach { code ->
+                        DropdownMenuItem(text = { Text(I18n.languageName(code)) }, onClick = {
+                            I18n.choose(code); preferences.put("language", code); languageMenu = false
+                        })
+                    }
+                }
+            }
+        }
+        if (System.getenv("NRF_MANAGED_BY_HUB") == "1") Text(tr("Installation et mises à jour gérées par NRF Hub"), style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(sdk, { sdk = it }, label = { Text("Bibliothèque SDK") }, singleLine = true, modifier = Modifier.weight(1f))
+            OutlinedTextField(sdk, { sdk = it }, label = { Text(tr("Bibliothèque SDK")) }, singleLine = true, modifier = Modifier.weight(1f))
             Button(onClick = {
-                val chooser = JFileChooser()
+                val chooser = JFileChooser().apply {
+                    locale = java.util.Locale.forLanguageTag(I18n.language)
+                    updateUI()
+                    dialogTitle = tr("Choisir la bibliothèque SDK")
+                    approveButtonText = tr("Ouvrir")
+                }
                 if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) { sdk = chooser.selectedFile.absolutePath; preferences.put("sdk", sdk) }
-            }) { Text("Parcourir") }
-            OutlinedTextField(pid, { pid = it }, label = { Text("PID facultatif") }, singleLine = true, modifier = Modifier.width(140.dp))
-            Button(onClick = { preferences.put("sdk", sdk); controller.connect(Path.of(sdk), pid.toIntOrNull()) }, enabled = sdk.isNotBlank() && (pid.isBlank() || pid.toIntOrNull()?.let { it > 0 } == true)) { Text("Connecter") }
-            OutlinedButton(onClick = controller::disconnect) { Text("Déconnecter") }
+            }) { Text(tr("Parcourir")) }
+            OutlinedTextField(pid, { pid = it }, label = { Text(tr("PID facultatif")) }, singleLine = true, modifier = Modifier.width(140.dp))
+            Button(onClick = { preferences.put("sdk", sdk); controller.connect(Path.of(sdk), pid.toIntOrNull()) }, enabled = sdk.isNotBlank() && (pid.isBlank() || pid.toIntOrNull()?.let { it > 0 } == true)) { Text(tr("Connecter")) }
+            OutlinedButton(onClick = controller::disconnect) { Text(tr("Déconnecter")) }
         }
         Row {
             Text(controller.status, Modifier.weight(1f))
@@ -93,28 +115,28 @@ fun main(args: Array<String>) {
                 val log = DiagnosticLog.forComponent("tco")
                 java.nio.file.Files.createDirectories(log.directory)
                 java.awt.Desktop.getDesktop().open(log.directory.toFile())
-            }.onFailure { DiagnosticLog.forComponent("tco").write("Cannot open log folder", it) } }) { Text("Journaux") }
+            }.onFailure { DiagnosticLog.forComponent("tco").write("Cannot open log folder", it) } }) { Text(tr("Journaux")) }
         }
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.width(300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(filter.query, { filter = filter.copy(query = it) }, label = { Text("Train, ligne ou identifiant") }, singleLine = true)
+                OutlinedTextField(filter.query, { filter = filter.copy(query = it) }, label = { Text(tr("Train, ligne ou identifiant")) }, singleLine = true)
                 Row {
-                    Checkbox(filter.locatedOnly, { filter = filter.copy(locatedOnly = it) }); Text("Position connue", Modifier.padding(top = 12.dp))
+                    Checkbox(filter.locatedOnly, { filter = filter.copy(locatedOnly = it) }); Text(tr("Position connue"), Modifier.padding(top = 12.dp))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     SpeedFilter.entries.forEach { speed ->
-                        FilterChip(filter.speed == speed, { filter = filter.copy(speed = speed) }, label = { Text(when (speed) { SpeedFilter.ALL -> "Tous"; SpeedFilter.MOVING -> "Roule"; SpeedFilter.STOPPED -> "Arrêt"; SpeedFilter.UNKNOWN -> "?" }) })
+                        FilterChip(filter.speed == speed, { filter = filter.copy(speed = speed) }, label = { Text(when (speed) { SpeedFilter.ALL -> tr("Tous"); SpeedFilter.MOVING -> tr("Roule"); SpeedFilter.STOPPED -> tr("Arrêt"); SpeedFilter.UNKNOWN -> "?" }) })
                     }
                 }
                 Text("${visible.size} / ${observation?.trains?.size ?: 0} trains")
-                TextButton(onClick = { filter = TrainFilter() }) { Text("Effacer les filtres") }
+                TextButton(onClick = { filter = TrainFilter() }) { Text(tr("Effacer les filtres")) }
                 LazyColumn(Modifier.weight(1f)) {
                     items(visible, key = Train::id) { train ->
                         Column(Modifier.fillMaxWidth().background(if (controller.selectedTrain == train.id) Color(0xff294661) else Color.Transparent)
                             .clickable { controller.selectedTrain = train.id; selectedTrack = null }.padding(10.dp)) {
                             Text(train.name.ifEmpty { train.id.toULong().toString(16) })
                             Text(services[train.id]?.lineName.orEmpty(), style = MaterialTheme.typography.bodySmall)
-                            Text(train.speedKmh?.let { "%.1f km/h".format(it) } ?: "Vitesse non mesurée", style = MaterialTheme.typography.bodySmall)
+                            Text(train.speedKmh?.let { "%.1f km/h".format(java.util.Locale.forLanguageTag(I18n.language), it) } ?: tr("Vitesse non mesurée"), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -122,15 +144,15 @@ fun main(args: Array<String>) {
             }
             Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { fit++ }) { Text("Tout le réseau") }
-                    Checkbox(showPath, { showPath = it }); Text("Path", Modifier.padding(top = 12.dp))
-                    Text("Signaux", Modifier.padding(top = 12.dp))
+                    OutlinedButton(onClick = { fit++ }) { Text(tr("Tout le réseau")) }
+                    Checkbox(showPath, { showPath = it }); Text(tr("Itinéraire"), Modifier.padding(top = 12.dp))
+                    Text(tr("Signaux"), Modifier.padding(top = 12.dp))
                     Slider(signalSize, { signalSize = it }, valueRange = 8f..48f, modifier = Modifier.width(160.dp))
                 }
                 RailMap(observation, controller.selectedTrain, { controller.selectedTrain = it; selectedTrack = null }, showPath, signalSize, fit, focus, Modifier.weight(1f).fillMaxWidth(),
                     selectTrack = { selectedTrack = it; controller.selectedTrain = null })
-                Text("${observation?.tracks?.size ?: 0} voies • ${observation?.signals?.size ?: 0} signaux • " +
-                    if (observation?.occupations == null) "Occupation indisponible" else "Occupations observées", style = MaterialTheme.typography.bodySmall)
+                Text(tr("{0} voies • {1} signaux • ", observation?.tracks?.size ?: 0, observation?.signals?.size ?: 0) +
+                    if (observation?.occupations == null) tr("Occupation indisponible") else tr("Occupations observées"), style = MaterialTheme.typography.bodySmall)
             }
         }
     }

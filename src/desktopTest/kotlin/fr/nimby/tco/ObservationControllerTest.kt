@@ -8,6 +8,20 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ObservationControllerTest {
+    @AfterTest fun resetLanguage() { fr.nimby.tco.i18n.I18n.configure("auto", "fr") }
+    @Test fun changingLanguageKeepsTheActiveObservationSession() = runTest {
+        var opens = 0
+        val client = Client { observation() }
+        val controller = ObservationController(backgroundScope, StandardTestDispatcher(testScheduler)) { _, _ -> opens++; client }
+        controller.connect(Path.of("test"), 42); runCurrent()
+        val before = controller.observation
+        fr.nimby.tco.i18n.I18n.choose("en")
+        assertEquals("Connected to the game • PID 42", controller.status)
+        assertSame(before, controller.observation); assertEquals(1, opens); assertEquals(0, client.closed)
+        fr.nimby.tco.i18n.I18n.choose("fr")
+        assertEquals("Connecté au jeu • PID 42", controller.status)
+        controller.disconnect(); runCurrent(); assertEquals(1, client.closed)
+    }
     private fun observation() = Observation(1, 42, "test", emptyList(), emptyList(), emptyList(), emptyList(),
         emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), null, null, null, null, null)
     private class Client(val read: () -> Observation) : ObservationClient {

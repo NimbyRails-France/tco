@@ -1,5 +1,9 @@
 package fr.nimby.tco
 
+import fr.nimby.tco.i18n.tr
+import fr.nimby.tco.i18n.UiText
+import fr.nimby.tco.i18n.message
+
 import androidx.compose.runtime.*
 import fr.nimby.sdk.*
 import kotlinx.coroutines.*
@@ -12,7 +16,8 @@ class ObservationController(
 ) {
     private val log = DiagnosticLog.forComponent("tco")
     var observation by mutableStateOf<Observation?>(null); private set
-    var status by mutableStateOf("Choisir le SDK puis connecter le jeu"); private set
+    private var statusText by mutableStateOf(message("Choisir le SDK puis connecter le jeu"))
+    val status get() = statusText.text
     var selectedTrain by mutableStateOf<Long?>(null)
     private var generation = 0L
     private var reader: Job? = null
@@ -20,14 +25,14 @@ class ObservationController(
         log.write("Connect SDK=$library gamePid=${processId ?: "auto"}")
         disconnect()
         val ticket = generation
-        status = "Recherche du jeu…"
+        statusText = message("Recherche du jeu…")
         reader = scope.launch {
             var client: ObservationClient? = null
             var expiry: Job? = null
             try {
                 val pid = processId ?: withContext(io) { GameProcesses.discover().singleOrNull()?.pid }
-                    ?: error("Indiquer le PID : aucun jeu unique détecté")
-                status = "Connexion au jeu • PID $pid"
+                    ?: error(tr("Indiquer le PID : aucun jeu unique détecté"))
+                statusText = message("Connexion au jeu • PID {0}", pid)
                 // Assign inside the worker so cancellation during open cannot
                 // discard a live native session before finally can close it.
                 withContext(io) { client = openClient(library, pid) }
@@ -53,7 +58,7 @@ class ObservationController(
                             if (ticket == generation) {
                                 expiry?.cancel()
                                 observation = null
-                                status = "Jeu détecté • attente d’une partie chargée ou d’une observation stable"
+                                statusText = message("Jeu détecté • attente d’une partie chargée ou d’une observation stable")
                             }
                             delay(500)
                             continue
@@ -67,25 +72,25 @@ class ObservationController(
                         available = true
                         if (ticket == generation && train == selectedTrain) {
                             observation = next
-                            status = "Connecté au jeu • PID $pid"
+                            statusText = message("Connecté au jeu • PID {0}", pid)
                             expiry?.cancel()
                             expiry = launch {
                                 delay(2_000)
                                 if (ticket == generation) {
                                     observation = null
-                                    status = "Observation périmée — attente du jeu"
+                                    statusText = message("Observation périmée — attente du jeu")
                                 }
                             }
                         }
                         delay(250)
                     }
             } catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { log.write("Observation interrupted", failure); if (ticket == generation) { observation = null; status = failure.message ?: "Observation interrompue" } }
+            catch (failure: Exception) { log.write("Observation interrupted", failure); if (ticket == generation) { observation = null; statusText = failure.message?.let { UiText(it, literal = true) } ?: message("Observation interrompue") } }
             finally {
                 expiry?.cancel()
                 withContext(NonCancellable + io) { try { client?.close() } catch (failure: Exception) { log.write("SDK session close failed", failure) } }
             }
         }
     }
-    fun disconnect() { log.write("Disconnect"); generation++; reader?.cancel(); reader = null; observation = null; status = "Déconnecté" }
+    fun disconnect() { log.write("Disconnect"); generation++; reader?.cancel(); reader = null; observation = null; statusText = message("Déconnecté") }
 }

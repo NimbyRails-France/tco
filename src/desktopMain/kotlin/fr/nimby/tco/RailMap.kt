@@ -1,5 +1,7 @@
 package fr.nimby.tco
 
+import fr.nimby.tco.i18n.tr
+
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -84,7 +86,7 @@ private data class SignalMarker(val signals: List<Signal>, val anchor: Offset, v
     }
     val tooltip = hovered?.let { cursor -> markers.minByOrNull { (it.center - cursor).getDistance() }
         ?.takeIf { (it.center - cursor).getDistance() <= signalSize }
-        ?.signals?.joinToString("\n") { "Signal ${it.id.toULong().toString(16)} · état ${it.specificState ?: it.textureState?.toString() ?: "inconnu"}" } }
+        ?.signals?.joinToString("\n") { tr("Signal {0} · état {1}", it.id.toULong().toString(16), it.specificState ?: it.textureState?.toString() ?: tr("inconnu")) } }
     Box(modifier.background(Color(0xff0c121b))) {
     Canvas(Modifier.fillMaxSize().onSizeChanged { size = it }
         .pointerInput(Unit) { detectDragGestures { change, drag -> change.consume(); viewport = viewport.pan(drag.x.toDouble(), drag.y.toDouble()) } }

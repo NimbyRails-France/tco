@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.6.0-alpha.2] - 2026-09-28
+
+- Ajoute le français et l'anglais, avec un choix de langue conservé entre les lancements.
+- Le changement de langue conserve la connexion, les filtres et la sélection sur la carte.
+- Traduit les informations de connexion et les détails des trains, signaux et voies.
+
+Adds French and English interfaces without losing the current connection, map selection or filters when switching language.
+
 ## [0.6.0-alpha.1] - 2026-09-27
 
 ### Windows alpha

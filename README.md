@@ -4,6 +4,16 @@ Le TCO est un projet Kotlin/Gradle pour IntelliJ IDEA, avec JDK 21.
 Qt, QML, CMake et les compilateurs C++ ne sont plus nécessaires côté TCO.
 Le SDK conserve son implémentation native et fournit un client Kotlin.
 
+Le sélecteur de l'en-tête propose **Automatique (système), Français, English**.
+La préférence est mémorisée et change les textes sans reconnecter le SDK ni
+réinitialiser les filtres. Automatique choisit le français pour un système `fr`,
+l'anglais sinon. Les noms du réseau et les diagnostics bruts restent intacts.
+
+The header language selector offers **Automatic (system), Français, English**.
+Your preference is saved; changing language does not reconnect the SDK or reset
+filters. Automatic mode uses French for a `fr` system language, English otherwise.
+Network names and raw diagnostics remain unchanged.
+
 Cloner le dépôt SDK à côté de celui-ci (`../sdk/kotlin-client`), ou passer
 `-PnrfSdkClientDir=/chemin/sdk/kotlin-client`.
 
