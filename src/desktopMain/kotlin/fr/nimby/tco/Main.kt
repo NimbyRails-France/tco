@@ -40,10 +40,10 @@ fun main(args: Array<String>) {
         // JNA is an implementation dependency of the SDK client. Resolve it
         // from the packaged runtime without exposing it as TCO's public API.
         check(Class.forName("com.sun.jna.Native").getField("POINTER_SIZE").getInt(null) == 8)
-        println("PASS: packaged Windows JVM, application classes and native dependencies")
+        println("PASS: packaged TCO ${TcoBuildInfo.VERSION}, Windows JVM, application classes and native dependencies")
         return
     }
-    DiagnosticLog.forComponent("tco").startApplication("0.6.0-alpha.2")
+    DiagnosticLog.forComponent("tco").startApplication(TcoBuildInfo.VERSION)
     if (args.firstOrNull() == "--check-sdk") {
         val path = Path.of(args.getOrNull(1) ?: error(tr("Chemin SDK requis")))
         val pid = args.getOrNull(2)?.toIntOrNull() ?: error(tr("PID requis"))
@@ -76,8 +76,7 @@ fun main(args: Array<String>) {
     var focus by remember { mutableStateOf(0) }
     var selectedTrack by remember { mutableStateOf<Long?>(null) }
     val observation = controller.observation
-    val services = remember(observation) { observation?.services.orEmpty().associateBy(Service::trainId) }
-    val visible = remember(observation, filter) { observation?.trains.orEmpty().filter { filter.matches(it.id, it.name, services[it.id]?.lineName, it.speedKmh, it.position != null) } }
+    val visible = remember(observation, filter) { observation?.trains.orEmpty().filter { filter.matches(it.id, it.name, observation?.service(it.id)?.lineName, it.speedKmh, it.position != null) } }
     Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text(tr("Tableau de contrôle optique"), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
@@ -118,7 +117,7 @@ fun main(args: Array<String>) {
             }.onFailure { DiagnosticLog.forComponent("tco").write("Cannot open log folder", it) } }) { Text(tr("Journaux")) }
         }
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.width(300.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.width(300.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(filter.query, { filter = filter.copy(query = it) }, label = { Text(tr("Train, ligne ou identifiant")) }, singleLine = true)
                 Row {
                     Checkbox(filter.locatedOnly, { filter = filter.copy(locatedOnly = it) }); Text(tr("Position connue"), Modifier.padding(top = 12.dp))
@@ -135,12 +134,14 @@ fun main(args: Array<String>) {
                         Column(Modifier.fillMaxWidth().background(if (controller.selectedTrain == train.id) Color(0xff294661) else Color.Transparent)
                             .clickable { controller.selectedTrain = train.id; selectedTrack = null }.padding(10.dp)) {
                             Text(train.name.ifEmpty { train.id.toULong().toString(16) })
-                            Text(services[train.id]?.lineName.orEmpty(), style = MaterialTheme.typography.bodySmall)
+                            Text(observation?.service(train.id)?.lineName.orEmpty(), style = MaterialTheme.typography.bodySmall)
                             Text(train.speedKmh?.let { "%.1f km/h".format(java.util.Locale.forLanguageTag(I18n.language), it) } ?: tr("Vitesse non mesurée"), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
-                ObservationDetails(observation, controller.selectedTrain, selectedTrack) { focus++ }
+                // Both regions share only the height left by the filters. A
+                // long detail sheet must not consume the train list's height.
+                ObservationDetails(observation, controller.selectedTrain, selectedTrack, Modifier.weight(1f)) { focus++ }
             }
             Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

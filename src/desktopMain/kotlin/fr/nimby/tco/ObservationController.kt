@@ -12,6 +12,7 @@ import java.nio.file.Path
 class ObservationController(
     private val scope: CoroutineScope,
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    private val nanoTime: () -> Long = System::nanoTime,
     private val openClient: (Path, Int) -> ObservationClient = NimbyClient::open,
 ) {
     private val log = DiagnosticLog.forComponent("tco")
@@ -41,17 +42,21 @@ class ObservationController(
                 var available = false
                 var successes = 0L
                 var unavailableCount = 0L
-                var nextSummary = System.nanoTime()
+                var nextSummary = nanoTime()
                     while (isActive && ticket == generation) {
                         val train = selectedTrain
-                        val started = System.nanoTime()
+                        val started = nanoTime()
                         val next = try {
                             withContext(io) { connection.capture(train) }
                         } catch (unavailable: SdkException) {
                             if (unavailable.status != 8) throw unavailable
                             unavailableCount++
+                            val now = nanoTime()
+                            if (available || unavailableCount == 1L || now >= nextSummary) {
+                                log.write("Waiting for a loaded game/stable observation; unavailable=$unavailableCount", level = "WARN")
+                                nextSummary = now + 30_000_000_000L
+                            }
                             available = false
-                            log.write("Waiting for a loaded game/stable observation", level = "WARN")
                             // Menus, loading and changing saves have no stable
                             // observation. Keep the session so loading a game
                             // does not require reconnecting the TCO manually.
@@ -64,7 +69,7 @@ class ObservationController(
                             continue
                         }
                         successes++
-                        val now = System.nanoTime()
+                        val now = nanoTime()
                         if (!available || now >= nextSummary) {
                             log.write("Observation ${if (available) "heartbeat" else "available/recovered"}: gamePid=$pid gameSHA256=${next.gameHash} trains=${next.trains.size} tracks=${next.tracks.size} signals=${next.signals.size} selectedTrain=$train clock=${next.clock} successes=$successes unavailable=$unavailableCount captureMs=${(now-started)/1_000_000} ageMs=${System.currentTimeMillis()-next.capturedAtMillis}")
                             nextSummary = now + 30_000_000_000L
@@ -82,7 +87,7 @@ class ObservationController(
                                 }
                             }
                         }
-                        delay(250)
+                        delay(nextCaptureDelayMs(started, nanoTime()))
                     }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) { log.write("Observation interrupted", failure); if (ticket == generation) { observation = null; statusText = failure.message?.let { UiText(it, literal = true) } ?: message("Observation interrompue") } }

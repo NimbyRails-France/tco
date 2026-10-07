@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [0.6.0-alpha.3] - 2026-10-08
+
+### Français
+
+Nécessite le SDK 0.9.0-alpha.1 ou une version compatible inférieure à 0.10.0.
+
+- Améliore la fluidité de la carte dans les grandes parties et le chargement des images des signaux lorsque vous vous déplacez sur le réseau.
+- Régularise le rafraîchissement des informations et réduit les messages répétés dans les journaux pendant l'attente du chargement d'une partie.
+- Facilite la lecture des détails grâce au défilement, tout en gardant accessibles la liste des trains et le bouton Centrer sur le train. La gare actuelle est indiquée plus clairement.
+- Corrige le débordement des voies et des repères hors du cadre de la carte, pour garder les commandes voisines visibles.
+
+### English
+
+Requires SDK 0.9.0-alpha.1 or a compatible version below 0.10.0.
+
+- Improves map responsiveness in large games and signal image loading as you navigate the network.
+- Makes information updates more regular and reduces repeated log messages while waiting for a game to load.
+- Makes details easier to read with scrolling while keeping the train list and Focus on train button accessible. The current station is more clearly labelled.
+- Fixes tracks and markers drawing outside the map frame, keeping nearby controls visible.
+
 ## [0.6.0-alpha.2] - 2026-09-28
 
 - Ajoute le français et l'anglais, avec un choix de langue conservé entre les lancements.

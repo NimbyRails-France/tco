@@ -17,7 +17,30 @@ val hostOs = when { System.getProperty("os.name").startsWith("Windows") -> "wind
 val hostArch = when (System.getProperty("os.arch")) { "amd64", "x86_64" -> "x64"; "aarch64", "arm64" -> "arm64"; else -> error("Architecture inconnue") }
 val releasePlatform = "$hostOs-$hostArch"
 val releaseRoot = "NimbyTco-${project.version}"
+val releasePolicyFile = file("release-channels.json")
+val releasePolicy = if (releasePolicyFile.isFile)
+    groovy.json.JsonSlurper().parse(releasePolicyFile) as? Map<*, *>
+        ?: error("release-channels.json must contain a JSON object")
+else emptyMap<String, Any>()
+val developmentStatus = if (releasePolicy.containsKey("developmentStatus")) {
+    val status = releasePolicy["developmentStatus"]
+    require(status is String && status in setOf("in-development", "stable")) {
+        "developmentStatus must be in-development or stable when present"
+    }
+    status
+} else null
 layout.buildDirectory = layout.projectDirectory.dir("build/kotlin-${System.getProperty("os.name").lowercase().replace(' ', '-')}")
+val applicationVersion = project.version.toString()
+val generatedBuildInfo = layout.buildDirectory.dir("generated/tcoBuildInfo")
+val generateBuildInfo by tasks.registering {
+    inputs.property("applicationVersion", applicationVersion)
+    outputs.dir(generatedBuildInfo)
+    doLast {
+        val target = generatedBuildInfo.get().file("fr/nimby/tco/TcoBuildInfo.kt").asFile
+        target.parentFile.mkdirs()
+        target.writeText("package fr.nimby.tco\n\ninternal object TcoBuildInfo { const val VERSION = \"$applicationVersion\" }\n")
+    }
+}
 kotlin {
     jvm("desktop")
     jvmToolchain(21)
@@ -30,10 +53,11 @@ kotlin {
         }
         commonTest.dependencies { implementation(kotlin("test")) }
         val desktopMain by getting {
+            kotlin.srcDir(generateBuildInfo)
             dependencies {
                 implementation(if (providers.gradleProperty("nrfTargetWindows").orNull == "true") compose.desktop.windows_x64 else compose.desktop.currentOs)
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
-                implementation("fr.nimbyrails:nimby-observation-client:0.8.0-alpha.1")
+                implementation("fr.nimbyrails:nimby-observation-client:0.9.0-alpha.1")
             }
         }
         val desktopTest by getting { dependencies {
@@ -106,6 +130,7 @@ tasks.register("prepareRelease") {
     group = "distribution"
     description = "Vérifie et prépare les installateurs et le paquet Hub, sans publication."
     dependsOn(hubArchive, "packageDistributionForCurrentOS")
+    inputs.file(releasePolicyFile).optional()
     doLast {
         val archive = hubArchive.get().archiveFile.get().asFile
         val destination = archive.parentFile
@@ -119,12 +144,13 @@ tasks.register("prepareRelease") {
             .map { it.copyTo(destination.resolve("$releaseRoot-$releasePlatform.${it.extension}"), overwrite = true) }.toList()
         require(packages.any { it.extension == if (hostOs == "windows") "exe" else "deb" })
         (packages + archive).forEach { destination.resolve("${it.name}.sha256").writeText("${hash(it)}  ${it.name}\n") }
-        val metadata = mapOf("id" to "tco", "kind" to "tco", "name" to "Nimby TCO", "version" to project.version.toString(),
+        val metadata = linkedMapOf<String, Any>("id" to "tco", "kind" to "tco", "name" to "Nimby TCO", "version" to project.version.toString(),
             "platform" to releasePlatform, "channel" to project.version.toString().substringAfter('-', "stable").substringBefore('.'),
             "rootFolder" to releaseRoot, "size" to archive.length(), "sha256" to hash(archive),
-            "sdkMin" to "0.8.0-alpha.1", "sdkMaxExclusive" to "0.9.0",
+            "sdkMin" to "0.9.0-alpha.1", "sdkMaxExclusive" to "0.10.0",
             "gameSha256" to listOf(if (hostOs == "windows") "fff49ac21720abfc824c2b4f68b862727630eb0db71cfe1f9ea8f685d0db10ae" else "2581d0e8157f43acb137b2bd9d52e2a7c82bd8af8b62fab5d87f00cc27eefde6"),
             "url" to "https://github.com/NimbyRails-France/tco/releases/download/v${project.version}/${archive.name}")
+        developmentStatus?.let { metadata["developmentStatus"] = it }
         val json = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(metadata)) + "\n"
         destination.resolve("project-$releasePlatform.json").writeText(json)
         destination.resolve("project.json").writeText(json)

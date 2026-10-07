@@ -80,4 +80,15 @@ class ObservationControllerTest {
         controller.disconnect(); runCurrent()
         assertEquals(1, client.closed)
     }
+    @Test fun slowCaptureDoesNotAddAnEntireExtraPollingPeriod() = runTest {
+        val starts = mutableListOf<Long>()
+        val client = Client { starts += testScheduler.currentTime; testScheduler.advanceTimeBy(180); observation() }
+        val controller = ObservationController(backgroundScope, StandardTestDispatcher(testScheduler),
+            nanoTime = { testScheduler.currentTime * 1_000_000 }) { _, _ -> client }
+        controller.connect(Path.of("test"), 42); runCurrent()
+        assertEquals(listOf(0L), starts)
+        advanceTimeBy(70); runCurrent()
+        assertEquals(listOf(0L, 250L), starts)
+        controller.disconnect(); runCurrent(); assertEquals(1, client.closed)
+    }
 }
